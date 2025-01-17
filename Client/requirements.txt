@@ -1,0 +1,3 @@
+# OS Is included natively, otherwise you may need to pip install that too!
+requests
+websocket-client

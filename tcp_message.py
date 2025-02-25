@@ -62,7 +62,6 @@ def receive_server_messages(Server_IP, Server_PORT):
             print(f"The server sent the following message: {message}")
 
             # Send acknowledgment
-
             ack = "The message has been received"
             client_socket.send(ack.encode())
 
@@ -72,10 +71,6 @@ def receive_server_messages(Server_IP, Server_PORT):
     finally:
         client_socket.close()
         print("The connection has been closed")
-
-
-
-
 
 
 if __name__ == "__main__":

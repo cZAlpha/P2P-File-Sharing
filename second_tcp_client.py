@@ -6,8 +6,8 @@ import time
 BUFFER_SIZE = 1024 # The number of bytes to be received/sent at once
 
 # Personal information for this client
-PEER_ID = "czalpha"
-PEER_PASSWORD = "password"
+PEER_ID = "donczar"
+PEER_PASSWORD = "password1"
 
 # Server information for easier connection (don't need to enter it every time)
 SERVER_IP_ADDRESS = "127.0.0.1"

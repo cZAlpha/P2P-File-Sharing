@@ -1,4 +1,4 @@
-def deregister(resource_peer_id, resource_file_name, resource_file_extension):
+def register(resource_peer_id, resource_file_name, resource_file_extension):
    """
    Purpose: This function returns a byte-encoded message to be sent to
             the indexing server by a Peer in order to register a file

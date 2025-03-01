@@ -7,13 +7,13 @@
 
 
 def subscribeToFile(P, selectedFile, fileOwner):
-    return P
-    return selectedFilereturn 
-    return fileOwner
+    return P, selectedFile, fileOwner
 
 
 if __name__ == "__main__":
     P = 'requestResourceDownload'
+    selectedFile = something
+    fileOwner = something
 
     status = input(f"Would you like to subscribe to a file? Input 'yes' to continue or 'no' if you do not wish to subscribe: ")
 
@@ -24,14 +24,14 @@ if __name__ == "__main__":
         try:
 
             selectedFile = input(f"Input the file you are requesting to download: ")
-            print(f"You want to request the file " + selectedFile)
+            print(f"You want to request the file {selectedFile}" )
 
         except exception as e:
             print(f"Error! Could not find the file being requested for download: {e}")
 
         try:
             fileOwner = input(f"Input the peer ID of the owner for the requested file: ")
-            print(f"Subscribed to file '" + selectedFile + "' from " + fileOwner)
+            print(f"Subscribed to file '{selectedFile}' from {fileOwner}")
     
         except Exception as e:
             print(f"Error! Could not find the owner of the file: {e}")

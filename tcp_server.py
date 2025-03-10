@@ -1,7 +1,6 @@
+import hashlib
 import socket
 from threading import Thread
-import hashlib
-
 
 # Global variables
 Server_IP = '127.0.0.1' # Localhost ; replace to IP address if needed
@@ -9,10 +8,33 @@ Server_PORT = 12000 # Port number ; replace with desired port number
 BUFFER_SIZE = 1024 # The number of bytes to be received/sent at once
 
 # List of tuples containing (peer_id, peer_password) of valid Peers
-peer_list = [("czalpha", "password")] 
+# peer_list = [("czalpha", "password")]  # Commented out: No longer needed as users are stored in users.txt
 
 # Communication conventions
 SEPARATOR = "<SEP>"
+
+# File to store user credentials
+USER_FILE = "users.txt"
+
+# List of online users
+online_users = []
+
+# Load existing users from the file
+def load_users():
+    users = {}
+    try:
+        with open(USER_FILE, "r") as file:
+            for line in file:
+                username, password = line.strip().split(SEPARATOR)
+                users[username] = password
+    except FileNotFoundError:
+        pass
+    return users
+
+# Save new user to the file
+def save_user(username, password):
+    with open(USER_FILE, "a") as file:
+        file.write(f"{username}{SEPARATOR}{password}\n")
 
 
 def handle_client(client_socket, client_address):
@@ -28,50 +50,54 @@ def handle_client(client_socket, client_address):
     
     try:
         print(f"[+] Connection from {client_address}")
+        users = load_users()  # Load users from file
         while True:
             try:
-                login_message = client_socket.recv(BUFFER_SIZE) # Receive the first 1024 bytes of data from the client
-                decoded_login_message = login_message.decode() # Save the decoded login message for usage in the login process
-                
-                print(login_message)
-                if not login_message: # If there's no data, break
-                    break
-                print(f"[+] Received Login Message: {login_message.decode()}") # Print received data to console
-                
-                if SEPARATOR not in decoded_login_message: # Check that the minimal formatting is there
-                    print(f"[-] Peer sent incorrectly formatted login message. Did not contain separator phrase. Message was: {login_message}")
+                message = client_socket.recv(BUFFER_SIZE).decode()  # Receive the first 1024 bytes of data from the client
+                if not message:  # If there's no data, break
                     break
                 
-                try: # Try to parse the peer's id and hashed password from their message
-                    peer_id, hashed_password = decoded_login_message.split(SEPARATOR)
-                except ValueError: # Handle errors gracefully
-                    print(f"[-] Invalid login format from {client_address}. Message: {decoded_login_message}")
+                print(f"[+] Received Message: {message}")  # Print received data to console
+                
+                if SEPARATOR not in message:  # Check that the minimal formatting is there
+                    print(f"[-] Peer sent incorrectly formatted message. Did not contain separator phrase. Message was: {message}")
                     break
                 
-                for peer in peer_list: # Iterate over valid peers and check for valid credentials
-                    if peer[0] == peer_id and hashlib.sha256(peer[1].encode()).hexdigest() == hashed_password: # Check for valid credentials
-                        print(f"[+] Peer: {peer_id} has successfully joined the network.")
-                        client_socket.send("[+] LOGIN SUCCESSFUL!".encode()) # Let the Client know they have successfully logged in
-                        return # Halt function for now
-                
-                client_socket.send("[-] LOGIN FAILED! Incorrect login credentials...".encode()) # Let the Client know they failed to log in
-                
-            except socket.error as e: # Handle errors gracefully
-                print(f"[-] Socket error occurred while communicating with {client_address}: {e}")
+                parts = message.split(SEPARATOR)
+                action = parts[0]
+                peer_id = parts[1]
+                peer_password = parts[2] if len(parts) > 2 else None
+
+                if action == "login":
+                    if peer_id in users and users[peer_id] == hashlib.sha256(peer_password.encode()).hexdigest():
+                        online_users.append(peer_id)
+                        client_socket.send("[+] LOGIN SUCCESSFUL!".encode())
+                    else:
+                        client_socket.send("[-] LOGIN FAILED! Incorrect credentials.".encode())
+
+                elif action == "register":
+                    if peer_id in users:
+                        client_socket.send("[-] REGISTRATION FAILED! Username already exists.".encode())
+                    else:
+                        hashed_password = hashlib.sha256(peer_password.encode()).hexdigest()
+                        save_user(peer_id, hashed_password)
+                        users[peer_id] = hashed_password
+                        client_socket.send("[+] REGISTRATION SUCCESSFUL!".encode())
+
+                elif action == "get_online_users":
+                    client_socket.send(str(online_users).encode())
+
+            except Exception as e:
+                print(f"[-] Error handling client {client_address}: {e}")
                 break
-            except UnicodeDecodeError as e: # Handle errors gracefully
-                print(f"[-] Error decoding data from {client_address}: {e}")
-                continue
-            
-    # General exception handling
+
     except Exception as e:
-        print(f"[-] Unexpected error occurred with client {client_address}: {e}")
-    finally: # After everything is done
-        try: # Try closing the connection to the given client
-            client_socket.close()
-            print(f"[-] Connection closed with {client_address}")
-        except socket.error as e: # Handle errors gracefully
-            print(f"[-] Error closing connection with {client_address}: {e}")
+        print(f"[-] Unexpected error with client {client_address}: {e}")
+    finally:
+        if peer_id in online_users:
+            online_users.remove(peer_id)
+        client_socket.close()
+        print(f"[-] Connection closed with {client_address}")
 
 
 def start_server():

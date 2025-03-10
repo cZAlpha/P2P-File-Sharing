@@ -7,6 +7,7 @@ BUFFER_SIZE = 1024 # The number of bytes to be received/sent at once
 # Personal information for this client
 # PEER_ID = "czalpha"  # Commented out: No longer needed as users should input their credentials
 # PEER_PASSWORD = "password"  # Commented out: No longer needed as users should input their credentials
+USER_FILE_PATH = 'users.txt'  # Path to the file storing user ids and hashed passwords
 
 # Server information for easier connection (don't need to enter it every time)
 SERVER_IP_ADDRESS = "127.0.0.1"
@@ -82,6 +83,21 @@ def login():
     print(send_tcp_message((ip, port), login_message)) # Print the response returned by the function 'send_tcp_message'
 
 
+def check_user_exists(peer_id):
+    """
+    Check if the given peer_id already exists in the user file.
+    """
+    try:
+        with open(USER_FILE_PATH, 'r') as file:
+            for line in file:
+                user_id, _ = line.strip().split(SEPARATOR)
+                if user_id == peer_id:
+                    return True
+    except FileNotFoundError:
+        return False  # If file doesn't exist, return False (no existing users)
+    return False
+
+
 def register():
     '''
     Purpose:
@@ -93,9 +109,21 @@ def register():
     ip = input('[+] Enter IP address: ') or SERVER_IP_ADDRESS
     port = input('[+] Enter port: ') or SERVER_PORT
     port = int(port)
-    peer_id = input('[+] Enter your Peer ID: ')
-    peer_password = input('[+] Enter your password: ')
 
+    # Loop var for peer_id getting
+    loop_peer_id = True
+    while loop_peer_id:
+        peer_id = input('[+] Enter your Peer ID: ')
+        
+        # Check if the peer_id already exists in the file
+        if check_user_exists(peer_id):
+            print(f"[!] The Peer ID '{peer_id}' already exists. Please choose a different ID.")
+        elif peer_id == "": # If blank user id
+            print("[!] You cannot enter an empty string as a peer id!")
+        else:
+            loop_peer_id = False  # Valid peer_id, exit the loop
+
+    peer_password = input('[+] Enter your password: ')
     hashed_password = hashlib.sha256(peer_password.encode()).hexdigest()
     register_message = f"register{SEPARATOR}{peer_id}{SEPARATOR}{hashed_password}"
     print(f"[+] Sending registration message: {register_message}")

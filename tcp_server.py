@@ -71,6 +71,7 @@ def handle_client(client_socket, client_address):
                 if action == "login":
                     if peer_id in users and users[peer_id] == hashlib.sha256(peer_password.encode()).hexdigest():
                         online_users.append(peer_id)
+                        print(f"[+] Online Users List: {online_users}")
                         client_socket.send("[+] LOGIN SUCCESSFUL!".encode())
                     else:
                         client_socket.send("[-] LOGIN FAILED! Incorrect credentials.".encode())
@@ -85,6 +86,7 @@ def handle_client(client_socket, client_address):
                         client_socket.send("[+] REGISTRATION SUCCESSFUL!".encode())
 
                 elif action == "get_online_users":
+                    print(f"[+] Online User Request Made. Online Users: {online_users}")
                     client_socket.send(str(online_users).encode())
 
             except Exception as e:

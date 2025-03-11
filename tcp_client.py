@@ -137,12 +137,9 @@ def get_online_users():
     Returns:
         Nothing, this is a void function.
     '''
-    ip = input('[+] Enter IP address: ') or SERVER_IP_ADDRESS
-    port = input('[+] Enter port: ') or SERVER_PORT
-    port = int(port)
     message = f"get_online_users{SEPARATOR}"
     print(f"[+] Fetching online users...")
-    print(send_tcp_message((ip, port), message))
+    print(f"[+] Online users fetched: {send_tcp_message((SERVER_IP_ADDRESS, SERVER_PORT), message)}")
 
 
 def main():

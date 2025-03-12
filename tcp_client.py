@@ -1,5 +1,9 @@
 import hashlib  # For hashing passwords when logging in
 from socket import *
+import tkinter as tk
+from tkinter import filedialog
+import os
+
 
 # Global variables
 BUFFER_SIZE = 1024 # The number of bytes to be received/sent at once
@@ -54,7 +58,9 @@ def login(client_socket):
     Args: 
         client_socket: The socket that the peer uses to talk to the server
     Returns:
-        True if success on login, otherwise false
+        A tuple containing (success_boolean, peer_id)
+        success_boolean: True if success on login, otherwise false
+        peer_id: The peer id of the user
     Notes:
         Login Message Format: "peer_id<SEP>peer_password" this is a byte string message that contains the id and password of the peer
         Passwords: Passwords are hashed before sending them to the server to avoid sending plain-text passwords over the network
@@ -75,12 +81,12 @@ def login(client_socket):
     print(response) # Print the response returned by the function 'send_tcp_message'
     
     if response[1] == "+": # Login Successful
-        return True
+        return True, peer_id
     else:
-        return False
+        return False, peer_id
 
 
-def logout(client_socket):
+def logout(client_socket, peer_id):
     '''
     Purpose: 
         Function that logs the user into the server following our login protocol diagram
@@ -89,6 +95,7 @@ def logout(client_socket):
     Returns:
         Nothing, this is a void function
     '''
+    message = "logout" + SEPA + peer_id
     response = send_tcp_message(client_socket, "logout")
     print(response) # Print the response returned by the function 'send_tcp_message'
 
@@ -176,22 +183,31 @@ def get_shared_resources(client_socket):
     return response
 
 
-def register_resource(client_socket, resource_peer_id, resource_file_name, resource_file_extension, resource_file_size):
+def register_resource(client_socket, resource_peer_id):
     """
-    Purpose: This function returns a byte-encoded message to be sent to
-                the indexing server by a Peer in order to register a file
-                from the sharable files on the indexing server
-    Args:
-        client_socket: The socket that the peer uses to talk to the server
-        resource_peer_id: The peer ID of the Peer who has the resource
-        resource_file_name: The name of the file to be deregistered
-        resource_file_extension: The file extension
-        resource_file_size: The size of the file in bytes
-    Returns: Byte encoded message that will tell the server what to de-register
+    Opens a file selection dialog and registers the selected file.
     """
-    # NOTE: The file extension should never include the '.', only the actual extension; i.e. "txt", "png", etc.
-    SEPARATOR = "<SEP>" # Establish separator phrase
-    message = ("r" + SEPARATOR + resource_peer_id + SEPARATOR + resource_file_name + SEPARATOR + resource_file_extension + SEPARATOR + resource_file_size).encode() # Create the message
+    
+    print(f"DEBUG: Registering resource for peer_id: '{resource_peer_id}'")
+    
+    # Initialize Tkinter root window (kept hidden)
+    root = tk.Tk()
+    root.withdraw()
+    
+    # Open file selection dialog
+    file_path = filedialog.askopenfilename()
+    if not file_path:
+        print("No file selected.")
+        return None
+    
+    # Extract file details
+    resource_file_name = os.path.splitext(os.path.basename(file_path))[0]
+    resource_file_extension = os.path.splitext(file_path)[1][1:]  # Remove leading '.'
+    resource_file_size = str(os.path.getsize(file_path))
+    
+    SEPARATOR = "<SEP>"
+    message = ("r" + SEPARATOR + resource_peer_id + SEPARATOR + resource_file_name + SEPARATOR + resource_file_extension + SEPARATOR + resource_file_size)
+    
     response = send_tcp_message(client_socket, message)
     print(f"[+] Resource Registered: {response}")
     return response
@@ -208,16 +224,20 @@ def main():
     
     logged_in = False # Keeps track of if the user is logged in or not
     
+    peer_id = "" # The peer's id
+    
     while not logged_in:
         print("\n1. Login\n2. Register\n3. Exit")
         choice = input("Choose an option: ")
         
         if choice == "1": # Log in
-            logged_in = login(client_socket) # Update the login status variable by trying to log the user in
+            logged_in, returned_peer_id = login(client_socket) # Update the login status variable by trying to log the user in
+            peer_id = returned_peer_id
         elif choice == "2": # Register
             register(client_socket)
             print("") # Add a new line and then force them to login
-            logged_in = login(client_socket) # Update the login status variable by trying to log the user in
+            logged_in, returned_peer_id = login(client_socket) # Update the login status variable by trying to log the user in
+            peer_id = returned_peer_id
         elif choice == "3": # Exit
             break
         else: # Invalid input catch
@@ -227,15 +247,17 @@ def main():
             print("")
     
     while logged_in:
-        print("\n1. View Online Users\n2. View Shared Resources\n3. Logout")
+        print("\n1. View Online Users\n2. View Shared Resources\n3. Register a Resource\n4. Logout")
         choice = input("Choose an option: ")
         
         if choice == "1": # Get Online Users
             online_users = get_online_users(client_socket)
         elif choice == "2": # Get Shared Resources
             shared_resources = get_shared_resources(client_socket)
-        elif choice == "3": # Log out
-            logout(client_socket) # Logs the user out by sending the server a logout message
+        elif choice == "3": # Register Resource
+            register_resource(client_socket, peer_id)
+        elif choice == "4": # Log out
+            logout(client_socket, peer_id) # Logs the user out by sending the server a logout message
             logged_in = False 
 
 

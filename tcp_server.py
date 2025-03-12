@@ -42,6 +42,29 @@ def save_user(username, password):
         file.write(f"{username}{SEPARATOR}{password}\n")
 
 
+def register_resource(resource_peer_id, resource_file_name, resource_file_extension, resource_file_size):
+    """
+    Purpose: This function appends a resource to the shared_resources list
+    Args:
+        resource_peer_id: The peer ID of the Peer who has the resource
+        resource_file_name: The name of the file to be deregistered
+        resource_file_extension: The file extension
+        resource_file_size: The size of the file in bytes
+    Returns:
+        True if resource was added to the list with no issues, otherwise false
+    """
+    
+    # If all args were given
+    if (resource_peer_id and resource_file_name and resource_file_extension and resource_file_size):
+        resource = (resource_peer_id, resource_file_name, resource_file_extension, resource_file_size)
+        # If the resource ain't a repeat, add it and return true
+        if resource not in shared_resources:
+            shared_resources.append(resource)
+            return True
+    # Otherwise return false
+    return False
+
+
 def handle_client(client_socket, client_address):
     print(f"[+] Connection from {client_address}")
     users = load_users()  # Load users from file
@@ -51,18 +74,18 @@ def handle_client(client_socket, client_address):
             message = client_socket.recv(BUFFER_SIZE).decode()
             if not message:
                 break  # Client disconnected
-
+            
             print(f"[+] Received Message: {message}")
-
+            
             if SEPARATOR not in message:
                 print("[-] Incorrectly formatted message. Missing separator.")
                 break
-
+            
             parts = message.split(SEPARATOR)
             action = parts[0]
             peer_id = parts[1]
             peer_password = parts[2] if len(parts) > 2 else None
-
+            
             if action == "login":
                 if peer_id in users and users[peer_id] == hashlib.sha256(peer_password.encode()).hexdigest():
                     if peer_id not in online_users:
@@ -75,24 +98,47 @@ def handle_client(client_socket, client_address):
                         try:
                             client_message = client_socket.recv(BUFFER_SIZE).decode()
                             
+                            # Message handling + parsing
                             if client_message != "": # Print the client's message if they sent one
                                 print(f"[+] {peer_id} sent: {client_message}")
-                            
-                            if client_message == "logout":
-                                print(f"[+] {peer_id} logged out.")
-                                online_users.remove(peer_id)
-                                client_socket.send("[+] LOGOUT SUCCESSFUL!".encode())
-                                break # Break out of the loop
-                            elif client_message == "get_online_users":
-                                print(f"[+] Online users request from {peer_id}")
-                                client_socket.send(str(online_users).encode())
-                            elif client_message == "get_shared_resources":
-                                print(f"[+] Get shared resources request from {peer_id}")
-                                client_socket.send(str(shared_resources).encode())
-                            elif client_message == "": # If they haven't said anything yet, chill and wait
+                                
+                                if SEPARATOR not in message:
+                                    print("[-] Incorrectly formatted message. Missing separator.")
+                                    break
+                                
+                                # Find all parts of the message
+                                parts = client_message.split(SEPARATOR)
+                                print("Parts:", parts)  # Debugging output
+                                
+                                action = parts[0]
+                                peer_id = parts[1] if len(parts) > 1 else None
+                                resource_file_name = parts[2] if len(parts) > 2 else None
+                                resource_file_extension = parts[3] if len(parts) > 3 else None
+                                resource_file_size = parts[4] if len(parts) > 4 else None
+                                
+                                # Action handling
+                                if action == "logout":
+                                    print(f"[+] {peer_id} logged out.")
+                                    online_users.remove(peer_id)
+                                    client_socket.send("[+] LOGOUT SUCCESSFUL!".encode())
+                                    break # Break out of the loop
+                                elif action == "get_online_users":
+                                    print(f"[+] Online users request from {peer_id}")
+                                    client_socket.send(str(online_users).encode())
+                                elif action == "get_shared_resources":
+                                    print(f"[+] Get shared resources request from {peer_id}")
+                                    client_socket.send(str(shared_resources).encode())
+                                elif action == "r":
+                                    print(f"[+] Register resource request from {peer_id}")
+                                    # If the resource was added successfully, tell the peer
+                                    if (peer_id in online_users) and (register_resource(peer_id, resource_file_name, resource_file_extension, resource_file_size)):
+                                        client_socket.send(f"[+] Resource: {resource_file_name}.{resource_file_extension} was added to the shared resources list.".encode())
+                                    else:
+                                        client_socket.send(f"[-] Resource was not added. Likely due to being a repeat or you not being in the active peer list!".encode())
+                                else:
+                                    client_socket.send("[-] Unknown command.".encode())
+                            else: # If message was empty, do nothing
                                 pass
-                            else:
-                                client_socket.send("[-] Unknown command.".encode())
                         
                         except Exception as e:
                             print(f"[-] Error with {peer_id}: {e}")

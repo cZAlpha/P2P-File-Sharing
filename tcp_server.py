@@ -18,7 +18,9 @@ USER_FILE = "users.txt"
 online_users = [] # Just contains the peer_id's of all online users
 
 # List of shared resources
-shared_resources = [] # Contains resources in the format: (file_name, file_extension, file_size, peer_id)
+# Contains resources in the format: (resource_peer_id, resource_file_name, resource_file_extension, resource_file_size)
+# No repeat resources are allowed!
+shared_resources = [] 
 
 
 # Load existing users from the file

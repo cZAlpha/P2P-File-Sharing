@@ -176,6 +176,27 @@ def get_shared_resources(client_socket):
     return response
 
 
+def register_resource(client_socket, resource_peer_id, resource_file_name, resource_file_extension, resource_file_size):
+    """
+    Purpose: This function returns a byte-encoded message to be sent to
+                the indexing server by a Peer in order to register a file
+                from the sharable files on the indexing server
+    Args:
+        client_socket: The socket that the peer uses to talk to the server
+        resource_peer_id: The peer ID of the Peer who has the resource
+        resource_file_name: The name of the file to be deregistered
+        resource_file_extension: The file extension
+        resource_file_size: The size of the file in bytes
+    Returns: Byte encoded message that will tell the server what to de-register
+    """
+    # NOTE: The file extension should never include the '.', only the actual extension; i.e. "txt", "png", etc.
+    SEPARATOR = "<SEP>" # Establish separator phrase
+    message = ("r" + SEPARATOR + resource_peer_id + SEPARATOR + resource_file_name + SEPARATOR + resource_file_extension + SEPARATOR + resource_file_size).encode() # Create the message
+    response = send_tcp_message(client_socket, message)
+    print(f"[+] Resource Registered: {response}")
+    return response
+
+
 def main():
     '''
     Purpose:

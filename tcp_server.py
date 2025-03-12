@@ -2,6 +2,7 @@ import hashlib
 import socket
 from threading import Thread
 
+
 # Global variables
 Server_IP = '127.0.0.1'  # Localhost; replace with IP address if needed
 Server_PORT = 12000  # Port number; replace with desired port number
@@ -14,7 +15,11 @@ SEPARATOR = "<SEP>"
 USER_FILE = "users.txt"
 
 # List of online users
-online_users = []
+online_users = [] # Just contains the peer_id's of all online users
+
+# List of shared resources
+shared_resources = [] # Contains resources in the format: (file_name, file_extension, file_size, peer_id)
+
 
 # Load existing users from the file
 def load_users():
@@ -28,10 +33,12 @@ def load_users():
         pass
     return users
 
+
 # Save new user to the file
 def save_user(username, password):
     with open(USER_FILE, "a") as file:
         file.write(f"{username}{SEPARATOR}{password}\n")
+
 
 def handle_client(client_socket, client_address):
     print(f"[+] Connection from {client_address}")
@@ -77,6 +84,9 @@ def handle_client(client_socket, client_address):
                             elif client_message == "get_online_users":
                                 print(f"[+] Online users request from {peer_id}")
                                 client_socket.send(str(online_users).encode())
+                            elif client_message == "get_shared_resources":
+                                print(f"[+] Get shared resources request from {peer_id}")
+                                client_socket.send(str(shared_resources).encode())
                             elif client_message == "": # If they haven't said anything yet, chill and wait
                                 pass
                             else:
@@ -110,6 +120,7 @@ def handle_client(client_socket, client_address):
         client_socket.close()
         print(f"[-] Connection closed with {client_address}")
 
+
 def start_server():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # Ensures that the insanely stupid 'port already in use' error doesn't occur
@@ -127,6 +138,7 @@ def start_server():
     finally:
         server_socket.close()
         print("[+] Server closed.")
+
 
 if __name__ == "__main__":
     start_server()

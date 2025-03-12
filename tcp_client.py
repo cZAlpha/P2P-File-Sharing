@@ -151,11 +151,29 @@ def get_online_users(client_socket):
     Args:
         client_socket: The socket that the peer uses to talk to the server
     Returns:
-        Nothing, this is a void function.
+        The response from the server
     '''
     message = f"get_online_users"
     print(f"[+] Fetching online users...")
-    print(f"[+] Online users fetched: {send_tcp_message(client_socket, message)}")
+    response = send_tcp_message(client_socket, message)
+    print(f"[+] Online users fetched: {response}")
+    return response
+
+
+def get_shared_resources(client_socket):
+    '''
+    Purpose:
+        Function to fetch the list of shared resources currently active in the P2P network
+    Args:
+        client_socket: The socket that the peer uses to talk to the server
+    Returns:
+        The response from the server
+    '''
+    message = f"get_shared_resources"
+    print(f"[+] Fetching shared resources...")
+    response = send_tcp_message(client_socket, message)
+    print(f"[+] Shared resources fetched: {response}")
+    return response
 
 
 def main():
@@ -188,12 +206,14 @@ def main():
             print("")
     
     while logged_in:
-        print("\n1. View Online Users\n2. Logout")
+        print("\n1. View Online Users\n2. View Shared Resources\n3. Logout")
         choice = input("Choose an option: ")
         
         if choice == "1": # Get Online Users
-            get_online_users(client_socket)
-        elif choice == "2": # Log out
+            online_users = get_online_users(client_socket)
+        elif choice == "2": # Get Shared Resources
+            shared_resources = get_shared_resources(client_socket)
+        elif choice == "3": # Log out
             logout(client_socket) # Logs the user out by sending the server a logout message
             logged_in = False 
 

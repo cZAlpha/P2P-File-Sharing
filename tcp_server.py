@@ -145,6 +145,7 @@ def handle_client(client_socket, client_address):
                             break
                 
                 else:
+                    print(f"[-] LOGIN FAILED! Incorrect credentials from {peer_id}.")
                     client_socket.send("[-] LOGIN FAILED! Incorrect credentials.".encode())
             
             elif action == "register":

@@ -96,7 +96,7 @@ def logout(client_socket, peer_id):
         Nothing, this is a void function
     '''
     message = "logout" + SEPARATOR + peer_id
-    response = send_tcp_message(client_socket, "logout")
+    response = send_tcp_message(client_socket, message)
     print(response) # Print the response returned by the function 'send_tcp_message'
 
 

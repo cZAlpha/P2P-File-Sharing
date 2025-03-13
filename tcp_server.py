@@ -100,15 +100,12 @@ def handle_client(client_socket, client_address):
                             
                             # Message handling + parsing
                             if client_message != "": # Print the client's message if they sent one
-                                print(f"[+] {peer_id} sent: {client_message}")
-                                
                                 if SEPARATOR not in message:
                                     print("[-] Incorrectly formatted message. Missing separator.")
                                     break
                                 
                                 # Find all parts of the message
                                 parts = client_message.split(SEPARATOR)
-                                print("Parts:", parts)  # Debugging output
                                 
                                 action = parts[0]
                                 peer_id = parts[1] if len(parts) > 1 else None
@@ -132,10 +129,13 @@ def handle_client(client_socket, client_address):
                                     print(f"[+] Register resource request from {peer_id}")
                                     # If the resource was added successfully, tell the peer
                                     if (peer_id in online_users) and (register_resource(peer_id, resource_file_name, resource_file_extension, resource_file_size)):
+                                        print(f"[+] Resource: {resource_file_name}.{resource_file_extension} was added to the shared resources list.")
                                         client_socket.send(f"[+] Resource: {resource_file_name}.{resource_file_extension} was added to the shared resources list.".encode())
                                     else:
+                                        print(f"[-] Resource was not added. Likely due to being a repeat or you not being in the active peer list!")
                                         client_socket.send(f"[-] Resource was not added. Likely due to being a repeat or you not being in the active peer list!".encode())
                                 else:
+                                    print(f"[-] Unknown command sent from: {peer_id}. Command was: {action}")
                                     client_socket.send("[-] Unknown command.".encode())
                             else: # If message was empty, do nothing
                                 pass

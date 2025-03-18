@@ -87,6 +87,16 @@ def handle_client(client_socket, client_address):
                 elif action == "get_online_users":
                     client_socket.send(str(online_users).encode())
 
+                #here
+                elif action == "deregister_resource":
+                    if peer_id in users and peer_id == resource_peer_id:
+                        deregister()
+                        client_socket.send("[+] FILE WAS DEREGISTERED.".encode())
+                    else:
+                        client_socket.send("[-] YOU ARE NOT A USER IN THE NETWORK.".encode())
+
+
+
             except Exception as e:
                 print(f"[-] Error handling client {client_address}: {e}")
                 break

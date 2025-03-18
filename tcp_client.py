@@ -151,7 +151,7 @@ def main():
         Main function to provide a menu for the user
     '''
     while True:
-        print("\n1. Login\n2. Register\n3. View Online Users\n4. Exit")
+        print("\n1. Login\n2. Register\n3. View Online Users\n4. Deregister Resource\n5. Exit")
         choice = input("Choose an option: ")
 
         if choice == "1":
@@ -161,6 +161,8 @@ def main():
         elif choice == "3":
             get_online_users()
         elif choice == "4":
+            deregister()
+        elif choice == "5":
             break
         else:
             print("Invalid choice. Try again.")

@@ -160,7 +160,7 @@ def get_online_users(client_socket):
     Returns:
         The response from the server
     '''
-    message = f"get_online_users"
+    message = f"get_online_users" + SEPARATOR
     print(f"[+] Fetching online users...")
     response = send_tcp_message(client_socket, message)
     print(f"[+] Online users fetched: {response}")
@@ -176,7 +176,7 @@ def get_shared_resources(client_socket):
     Returns:
         The response from the server
     '''
-    message = f"get_shared_resources"
+    message = f"get_shared_resources" + SEPARATOR
     print(f"[+] Fetching shared resources...")
     response = send_tcp_message(client_socket, message)
     print(f"[+] Shared resources fetched: {response}")
@@ -211,6 +211,26 @@ def register_resource(client_socket, resource_peer_id):
     response = send_tcp_message(client_socket, message)
     print(f"[+] Resource Registered: {response}")
     return response
+
+
+def deregister_resource(client_socket, resource_peer_id, resource_file_name, resource_file_extension):
+    """
+    Purpose: This function returns a byte-encoded message to be sent to 
+                the indexing server by a Peer in order to de-register a file
+                from the sharable files on the indexing server
+    Args:
+        resource_peer_id: The peer ID of the Peer who has the resource
+        resource_file_name: The name of the file to be deregistered
+        resource_file_extension: The file extension
+    Returns: Byte encoded message that will tell the server what to de-register
+    """
+    # NOTE: The file extension should never include the '.', only the actual extension; i.e. "txt", "png", etc.
+    SEPARATOR = "<SEP>" # Establish separator phrase
+    message = ("d" + SEPARATOR + resource_peer_id + SEPARATOR + resource_file_name + SEPARATOR + resource_file_extension)
+    
+    response = send_tcp_message(client_socket, message)
+    print(f"[+] Resource Deregistered: {response}")
+    return message
 
 
 def main():
@@ -256,8 +276,12 @@ def main():
             shared_resources = get_shared_resources(client_socket)
         elif choice == "3": # Register a Resource
             register_resource(client_socket, peer_id)
-        elif choice == "4": # Deregister Resource
-            deregister() 
+        elif choice == "4":  # Deregister Resource
+            print("") # Add some white space
+            resource_peer_id = input("[?] Enter resource peer ID: ")
+            resource_file_name = input("[?] Enter resource file name: ")
+            resource_file_extension = input("[?] Enter resource file extension: ")
+            deregistration_response = deregister_resource(client_socket, resource_peer_id, resource_file_name, resource_file_extension)
         elif choice == "5": # Logout
             logout(client_socket, peer_id)
             logged_in = False

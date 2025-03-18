@@ -64,8 +64,8 @@ def register_resource(resource_peer_id, resource_file_name, resource_file_extens
     # Otherwise return false
     return False
 
-  
-def deregister_resource(resource_peer_id, resource_file_name):
+
+def deregister_resource(resource_peer_id, resource_file_name, resource_file_extension):
     """
     Purpose: This function removes a resource from the shared_resources list.
     Args:
@@ -76,7 +76,7 @@ def deregister_resource(resource_peer_id, resource_file_name):
     """
     global shared_resources
     for resource in shared_resources:
-        if resource[0] == resource_peer_id and resource[1] == resource_file_name:
+        if resource[0] == resource_peer_id and resource[1] == resource_file_name and resource[2] == resource_file_extension:
             shared_resources.remove(resource)
             return True
     return False
@@ -114,33 +114,33 @@ def handle_client(client_socket, client_address):
                     while True:
                         try:
                             client_message = client_socket.recv(BUFFER_SIZE).decode()
-
+                            
                             if client_message:
                                 if SEPARATOR not in client_message:
                                     print("[-] Incorrectly formatted message. Missing separator.")
                                     break
-
+                                
                                 parts = client_message.split(SEPARATOR)
                                 action = parts[0]
                                 resource_peer_id = parts[1] if len(parts) > 1 else None
                                 resource_file_name = parts[2] if len(parts) > 2 else None
                                 resource_file_extension = parts[3] if len(parts) > 3 else None
                                 resource_file_size = parts[4] if len(parts) > 4 else None
-
+                                
                                 if action == "logout":
                                     print(f"[+] {peer_id} logged out.")
                                     online_users.remove(peer_id)
                                     client_socket.send("[+] LOGOUT SUCCESSFUL!".encode())
                                     break
-
+                                
                                 elif action == "get_online_users":
                                     print(f"[+] Online users request from {peer_id}")
                                     client_socket.send(str(online_users).encode())
-
+                                
                                 elif action == "get_shared_resources":
                                     print(f"[+] Get shared resources request from {peer_id}")
                                     client_socket.send(str(shared_resources).encode())
-
+                                
                                 elif action == "r":
                                     print(f"[+] Register resource request from {peer_id}")
                                     if peer_id in online_users and register_resource(peer_id, resource_file_name, resource_file_extension, resource_file_size):
@@ -149,14 +149,20 @@ def handle_client(client_socket, client_address):
                                     else:
                                         print("[-] Resource was not added. Possible duplicate or not an active peer.")
                                         client_socket.send("[-] Resource was not added. Possible duplicate or not an active peer.".encode())
-
-                                elif action == "deregister_resource":
-                                    if peer_id in online_users and peer_id == resource_peer_id:
-                                        deregister()
-                                        client_socket.send("[+] FILE WAS DEREGISTERED.".encode())
+                                
+                                elif action == "d":
+                                    # TODO: Only allow the user whose file it is to de-register the resource (this requires a slight restructure of the 'd' message format!)
+                                    if peer_id in online_users: # Double check that user is logged in before allowing command
+                                        if len(shared_resources) > 0: # Check there's even a resource to de-register
+                                            if (deregister_resource(peer_id, resource_file_name, resource_file_extension)):
+                                                client_socket.send("[+] FILE WAS DEREGISTERED.".encode())
+                                            else:
+                                                client_socket.send("[-] FILE DEREGISTRATION FAILED.".encode())
+                                        else: # If no resources
+                                            client_socket.send("[-] No shared resources to deregister.".encode())
                                     else:
                                         client_socket.send("[-] YOU ARE NOT A USER IN THE NETWORK.".encode())
-
+                                
                                 else:
                                     print(f"[-] Unknown command from {peer_id}: {action}")
                                     client_socket.send("[-] Unknown command.".encode())

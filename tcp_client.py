@@ -231,34 +231,38 @@ def main():
         choice = input("Choose an option: ")
         
         if choice == "1": # Log in
-            logged_in, returned_peer_id = login(client_socket) # Update the login status variable by trying to log the user in
+            logged_in, returned_peer_id = login(client_socket)
             peer_id = returned_peer_id
         elif choice == "2": # Register
             register(client_socket)
-            print("") # Add a new line and then force them to login
-            logged_in, returned_peer_id = login(client_socket) # Update the login status variable by trying to log the user in
+            print("")  # Add a new line and then force them to login
+            logged_in, returned_peer_id = login(client_socket)
             peer_id = returned_peer_id
         elif choice == "3": # Exit
-            break
-        else: # Invalid input catch
+            return
+        else:
             print("Invalid choice. Try again.")
     
     for _ in range(20): # Create some white space
-            print("")
+        print("")
     
     while logged_in:
-        print("\n1. View Online Users\n2. View Shared Resources\n3. Register a Resource\n4. Logout")
+        print("\n1. View Online Users\n2. View Shared Resources\n3. Register a Resource\n4. Deregister Resource\n5. Logout")
         choice = input("Choose an option: ")
         
         if choice == "1": # Get Online Users
             online_users = get_online_users(client_socket)
         elif choice == "2": # Get Shared Resources
             shared_resources = get_shared_resources(client_socket)
-        elif choice == "3": # Register Resource
+        elif choice == "3": # Register a Resource
             register_resource(client_socket, peer_id)
-        elif choice == "4": # Log out
-            logout(client_socket, peer_id) # Logs the user out by sending the server a logout message
-            logged_in = False 
+        elif choice == "4": # Deregister Resource
+            deregister() 
+        elif choice == "5": # Logout
+            logout(client_socket, peer_id)
+            logged_in = False
+        else:
+            print("Invalid choice. Try again.")
 
 
 if __name__ == '__main__':

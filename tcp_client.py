@@ -1,5 +1,9 @@
 import hashlib  # For hashing passwords when logging in
 from socket import *
+import tkinter as tk
+from tkinter import filedialog
+import os
+
 
 # Global variables
 BUFFER_SIZE = 1024 # The number of bytes to be received/sent at once
@@ -17,7 +21,22 @@ SERVER_PORT = 12000
 SEPARATOR = "<SEP>"
 
 
-def send_tcp_message(server, message):
+def create_persistent_connection(ip, port):
+    '''
+    Purpose: 
+        Establishes a persistent connection to the server.
+    Args.:
+        ip: The server's IP address
+        port: The server's IP port
+    Returns: 
+        The client socket
+    '''
+    client_socket = socket(AF_INET, SOCK_STREAM)
+    client_socket.connect((ip, port))
+    return client_socket
+
+
+def send_tcp_message(client_socket, message):
     '''
     Purpose: 
         Function that sends a TCP message to a given Server (IP)
@@ -27,25 +46,21 @@ def send_tcp_message(server, message):
     Returns: 
         The string (decoded from byte string) response from the server
     '''
-    client_socket = socket(AF_INET,SOCK_STREAM) # Instantiate a client socket with which to connect to the server
-    client_socket.connect(server) # Connect to the server
-    client_socket.send(message.encode()) # Send the encoded message from the server
-    response = client_socket.recv(BUFFER_SIZE) # Wait for a response, and then accept the first BUFFER_SIZE # of bytes from the response
-    client_socket.close()
-    return response.decode()
+    client_socket.send(message.encode())
+    response = client_socket.recv(BUFFER_SIZE).decode()
+    return response
 
 
-def login():
+def login(client_socket):
     '''
     Purpose: 
         Function that logs the user into the server following our login protocol diagram
     Args: 
-        server_ip_address: This is the server's IPv4 address
-        server_port: The port with which the server is using
-        peer_id: Similar to a user id for a normal program, this is a unique identifier for Peers
-        peer_password: This is the password the Peer uses to log into the server (can also use Steno. password but that isn't implemented yet)
+        client_socket: The socket that the peer uses to talk to the server
     Returns:
-        Nothing, this is a void function.
+        A tuple containing (success_boolean, peer_id)
+        success_boolean: True if success on login, otherwise false
+        peer_id: The peer id of the user
     Notes:
         Login Message Format: "peer_id<SEP>peer_password" this is a byte string message that contains the id and password of the peer
         Passwords: Passwords are hashed before sending them to the server to avoid sending plain-text passwords over the network
@@ -53,34 +68,36 @@ def login():
     
     # Initial console logging
     print("\n", "[+] Client instance is now active.", sep="")
-    print("    For default args., hit enter on prompts without typing anything", end="\n\n")
     
-    # User input
-    ip = input('[+] Enter IP address: ')
-    if ip == "": # Default case handling
-        print("Default args.")
-        ip = SERVER_IP_ADDRESS
-    port = input('[+] Enter port: ')
-    if port == "": # Default case handling
-        print("Default args.")
-        port = SERVER_PORT
-    else: # If something was entered, typecast to integer
-        port = int(port)
-    
-    peer_id = input('[+] Enter your Peer ID: ')
-    # if peer_id == "": # Default case handling
-    #     print("Default args.")
-    #     peer_id = PEER_ID  # Commented out: No longer needed as users should input their credentials
-    peer_password = input('[+] Enter your password: ')
-    # if peer_password == "":
-    #     print("Default args.")
-    #     peer_password = PEER_PASSWORD  # Commented out: No longer needed as users should input their credentials
+    peer_id = input('[+] Enter your Peer ID: ').strip()
+    peer_password = input('[+] Enter your password: ').strip()
     
     # Login Message Construction
     hashed_password = hashlib.sha256(peer_password.encode()).hexdigest() # Hex digest of password (using byte digest requires more lines of code)
     login_message = f"login{SEPARATOR}{peer_id}{SEPARATOR}{hashed_password}" # The login message being made
     print(f"[+] Sending the following login message to the server: {login_message}")
-    print(send_tcp_message((ip, port), login_message)) # Print the response returned by the function 'send_tcp_message'
+    
+    response = send_tcp_message(client_socket, login_message)
+    print(response) # Print the response returned by the function 'send_tcp_message'
+    
+    if response[1] == "+": # Login Successful
+        return True, peer_id
+    else:
+        return False, peer_id
+
+
+def logout(client_socket, peer_id):
+    '''
+    Purpose: 
+        Function that logs the user into the server following our login protocol diagram
+    Args: 
+        client_socket: The socket that the peer uses to talk to the server
+    Returns:
+        Nothing, this is a void function
+    '''
+    message = "logout" + SEPARATOR + peer_id
+    response = send_tcp_message(client_socket, message)
+    print(response) # Print the response returned by the function 'send_tcp_message'
 
 
 def check_user_exists(peer_id):
@@ -98,18 +115,17 @@ def check_user_exists(peer_id):
     return False
 
 
-def register():
+def register(client_socket):
     '''
     Purpose:
         Function to register a new user with the server
+    Args:
+        client_socket: The socket that the peer uses to talk to the server
     Returns:
-        Nothing, this is a void function.
+        True if registered successfully, false otherwise
     '''
     print("\n[+] Registration")
-    ip = input('[+] Enter IP address: ') or SERVER_IP_ADDRESS
-    port = input('[+] Enter port: ') or SERVER_PORT
-    port = int(port)
-
+    
     # Loop var for peer_id getting
     loop_peer_id = True
     while loop_peer_id:
@@ -122,27 +138,79 @@ def register():
             print("[!] You cannot enter an empty string as a peer id!")
         else:
             loop_peer_id = False  # Valid peer_id, exit the loop
-
+    
     peer_password = input('[+] Enter your password: ')
     hashed_password = hashlib.sha256(peer_password.encode()).hexdigest()
     register_message = f"register{SEPARATOR}{peer_id}{SEPARATOR}{hashed_password}"
     print(f"[+] Sending registration message: {register_message}")
-    print(send_tcp_message((ip, port), register_message))
+    response = send_tcp_message(client_socket, register_message)
+    
+    if response[1] == "+": # Success
+        return True
+    else:
+        return False
 
 
-def get_online_users():
+def get_online_users(client_socket):
     '''
     Purpose:
         Function to fetch the list of online users from the server
+    Args:
+        client_socket: The socket that the peer uses to talk to the server
     Returns:
-        Nothing, this is a void function.
+        The response from the server
     '''
-    ip = input('[+] Enter IP address: ') or SERVER_IP_ADDRESS
-    port = input('[+] Enter port: ') or SERVER_PORT
-    port = int(port)
-    message = f"get_online_users{SEPARATOR}"
+    message = f"get_online_users"
     print(f"[+] Fetching online users...")
-    print(send_tcp_message((ip, port), message))
+    response = send_tcp_message(client_socket, message)
+    print(f"[+] Online users fetched: {response}")
+    return response
+
+
+def get_shared_resources(client_socket):
+    '''
+    Purpose:
+        Function to fetch the list of shared resources currently active in the P2P network
+    Args:
+        client_socket: The socket that the peer uses to talk to the server
+    Returns:
+        The response from the server
+    '''
+    message = f"get_shared_resources"
+    print(f"[+] Fetching shared resources...")
+    response = send_tcp_message(client_socket, message)
+    print(f"[+] Shared resources fetched: {response}")
+    return response
+
+
+def register_resource(client_socket, resource_peer_id):
+    """
+    Opens a file selection dialog and registers the selected file.
+    """
+    
+    print(f"DEBUG: Registering resource for peer_id: '{resource_peer_id}'")
+    
+    # Initialize Tkinter root window (kept hidden)
+    root = tk.Tk()
+    root.withdraw()
+    
+    # Open file selection dialog
+    file_path = filedialog.askopenfilename()
+    if not file_path:
+        print("No file selected.")
+        return None
+    
+    # Extract file details
+    resource_file_name = os.path.splitext(os.path.basename(file_path))[0]
+    resource_file_extension = os.path.splitext(file_path)[1][1:]  # Remove leading '.'
+    resource_file_size = str(os.path.getsize(file_path))
+    
+    SEPARATOR = "<SEP>"
+    message = ("r" + SEPARATOR + resource_peer_id + SEPARATOR + resource_file_name + SEPARATOR + resource_file_extension + SEPARATOR + resource_file_size)
+    
+    response = send_tcp_message(client_socket, message)
+    print(f"[+] Resource Registered: {response}")
+    return response
 
 
 def main():
@@ -150,20 +218,49 @@ def main():
     Purpose:
         Main function to provide a menu for the user
     '''
-    while True:
-        print("\n1. Login\n2. Register\n3. View Online Users\n4. Deregister Resource\n5. Exit")
+    
+    # Connect to the server and ensure connection persistence
+    client_socket = create_persistent_connection(SERVER_IP_ADDRESS, SERVER_PORT) 
+    
+    logged_in = False # Keeps track of if the user is logged in or not
+    
+    peer_id = "" # The peer's id
+    
+    while not logged_in:
+        print("\n1. Login\n2. Register\n3. Exit")
         choice = input("Choose an option: ")
-
-        if choice == "1":
-            login()
-        elif choice == "2":
-            register()
-        elif choice == "3":
-            get_online_users()
-        elif choice == "4":
-            deregister()
-        elif choice == "5":
-            break
+        
+        if choice == "1": # Log in
+            logged_in, returned_peer_id = login(client_socket)
+            peer_id = returned_peer_id
+        elif choice == "2": # Register
+            register(client_socket)
+            print("")  # Add a new line and then force them to login
+            logged_in, returned_peer_id = login(client_socket)
+            peer_id = returned_peer_id
+        elif choice == "3": # Exit
+            return
+        else:
+            print("Invalid choice. Try again.")
+    
+    for _ in range(20): # Create some white space
+        print("")
+    
+    while logged_in:
+        print("\n1. View Online Users\n2. View Shared Resources\n3. Register a Resource\n4. Deregister Resource\n5. Logout")
+        choice = input("Choose an option: ")
+        
+        if choice == "1": # Get Online Users
+            online_users = get_online_users(client_socket)
+        elif choice == "2": # Get Shared Resources
+            shared_resources = get_shared_resources(client_socket)
+        elif choice == "3": # Register a Resource
+            register_resource(client_socket, peer_id)
+        elif choice == "4": # Deregister Resource
+            deregister() 
+        elif choice == "5": # Logout
+            logout(client_socket, peer_id)
+            logged_in = False
         else:
             print("Invalid choice. Try again.")
 

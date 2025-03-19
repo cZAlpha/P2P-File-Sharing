@@ -15,6 +15,7 @@ SEPARATOR = "<SEP>"
 USER_FILE = "users.txt"
 
 # List of online users
+# Format: [(peer_id, (peer_server_ip, peer_server_port)), ...]
 online_users = [] # Just contains the peer_id's of all online users
 
 # List of shared resources
@@ -42,6 +43,7 @@ def save_user(username, password):
         file.write(f"{username}{SEPARATOR}{password}\n")
 
 
+# Register a new resource
 def register_resource(resource_peer_id, resource_file_name, resource_file_extension, resource_file_size):
     """
     Purpose: This function appends a resource to the shared_resources list
@@ -65,6 +67,7 @@ def register_resource(resource_peer_id, resource_file_name, resource_file_extens
     return False
 
 
+# Deregister an existing resource
 def deregister_resource(resource_peer_id, resource_file_name, resource_file_extension):
     """
     Purpose: This function removes a resource from the shared_resources list.
@@ -82,34 +85,66 @@ def deregister_resource(resource_peer_id, resource_file_name, resource_file_exte
     return False
 
 
+# Request a file transfer from one peer to another
+def request_file_transfer(requesting_peer, resource_owner, resource_file_name, resource_file_extension):
+    """
+    Purpose: Facilitates a peer-to-peer file transfer by providing the requesting peer 
+    with the resource owner's IP.
+    Args:
+        requesting_peer: The peer ID of the requesting client.
+        resource_owner: The peer ID of the client that owns the resource.
+        resource_file_name: The name of the requested file.
+        resource_file_extension: The file extension of the requested file.
+    Returns:
+        The (IP address, port) of the resource owner or an error message.
+    """
+    if requesting_peer == resource_owner: # Check if the peer is requesting a file from themselves
+        return f"[!] You are requesting a file you own, you cannot download a file from yourself!"
+    resource_to_check = (resource_owner, resource_file_name, resource_file_extension)
+    for user in online_users: # Check if the resource owner is online still
+        owner_server_info = user[1] # Format: (server_ip, server_port)
+        if user[0] == resource_owner: 
+            for resource in shared_resources: # Iterate over the shared_resources and check if the resource_to_check is in it
+                if resource[:3] == resource_to_check:  # If the resource is in the shared_resources list
+                    owner_server_info# Get the port and ip 
+                    # Send the requesting peer the owner's contact information
+                    return f"[+] FILE AVAILABLE FROM {resource_owner}. CONTACTING THEM DIRECTLY @ {owner_server_info}"
+    return "[-] FILE NOT AVAILABLE OR PEER OFFLINE."
+
+
+# Handle client(s)
 def handle_client(client_socket, client_address):
     print(f"[+] Connection from {client_address}")
     users = load_users()  # Load users from file
-
+    
     try:
         while True:
             message = client_socket.recv(BUFFER_SIZE).decode()
             if not message:
                 break  # Client disconnected
-
+            
             print(f"[+] Received Message: {message}")
-
+            
             if SEPARATOR not in message:
                 print("[-] Incorrectly formatted message. Missing separator.")
                 break
-
+            
             parts = message.split(SEPARATOR)
             action = parts[0]
             peer_id = parts[1]
             peer_password = parts[2] if len(parts) > 2 else None
-
+            
             if action == "login":
+                # Grab user's server's ip and port
+                peer_server_info = parts[3]
+                
                 if peer_id in users and users[peer_id] == hashlib.sha256(peer_password.encode()).hexdigest():
                     if peer_id not in online_users:
-                        online_users.append(peer_id)
+                        online_users.append((peer_id, peer_server_info))
+                        print(online_users)
                     print(f"[+] Online Users List: {online_users}")
                     client_socket.send("[+] LOGIN SUCCESSFUL!".encode())
-
+                    
                     # Keep client in loop for further requests
                     while True:
                         try:
@@ -128,14 +163,19 @@ def handle_client(client_socket, client_address):
                                 resource_file_size = parts[4] if len(parts) > 4 else None
                                 
                                 if action == "logout":
-                                    print(f"[+] {peer_id} logged out.")
-                                    online_users.remove(peer_id)
-                                    client_socket.send("[+] LOGOUT SUCCESSFUL!".encode())
-                                    break
+                                    for user in online_users[:]:  # Iterate over a copy to avoid modifying while iterating
+                                        if user[0] == peer_id:
+                                            online_users.remove(user)
+                                            print(f"[+] {peer_id} logged out.")
+                                            client_socket.send("[+] LOGOUT SUCCESSFUL!".encode())
+                                            break
                                 
                                 elif action == "get_online_users":
                                     print(f"[+] Online users request from {peer_id}")
-                                    client_socket.send(str(online_users).encode())
+                                    list_of_online_peer_ids = []
+                                    for user in online_users:
+                                        list_of_online_peer_ids.append(user[0]) # Only append the peer id not the server info
+                                    client_socket.send(str(list_of_online_peer_ids).encode())
                                 
                                 elif action == "get_shared_resources":
                                     print(f"[+] Get shared resources request from {peer_id}")
@@ -143,7 +183,11 @@ def handle_client(client_socket, client_address):
                                 
                                 elif action == "r":
                                     print(f"[+] Register resource request from {peer_id}")
-                                    if peer_id in online_users and register_resource(peer_id, resource_file_name, resource_file_extension, resource_file_size):
+                                    peer_is_online = False
+                                    for user in online_users: # Check if the peer is online
+                                        if user[0] == peer_id:
+                                            peer_is_online = True
+                                    if peer_is_online and register_resource(peer_id, resource_file_name, resource_file_extension, resource_file_size):
                                         print(f"[+] Resource {resource_file_name}.{resource_file_extension} added.")
                                         client_socket.send(f"[+] Resource {resource_file_name}.{resource_file_extension} was added.".encode())
                                     else:
@@ -152,47 +196,66 @@ def handle_client(client_socket, client_address):
                                 
                                 elif action == "d":
                                     # TODO: Only allow the user whose file it is to de-register the resource (this requires a slight restructure of the 'd' message format!)
-                                    if peer_id in online_users: # Double check that user is logged in before allowing command
-                                        if len(shared_resources) > 0: # Check there's even a resource to de-register
-                                            if (deregister_resource(peer_id, resource_file_name, resource_file_extension)):
-                                                client_socket.send("[+] FILE WAS DEREGISTERED.".encode())
-                                            else:
-                                                client_socket.send("[-] FILE DEREGISTRATION FAILED.".encode())
-                                        else: # If no resources
-                                            client_socket.send("[-] No shared resources to deregister.".encode())
-                                    else:
-                                        client_socket.send("[-] YOU ARE NOT A USER IN THE NETWORK.".encode())
+                                    for user in online_users:
+                                        if user[0] == peer_id:
+                                            if len(shared_resources) > 0: # Check there's even a resource to de-register
+                                                if (deregister_resource(peer_id, resource_file_name, resource_file_extension)):
+                                                    client_socket.send("[+] FILE WAS DEREGISTERED.".encode())
+                                                else:
+                                                    client_socket.send("[-] FILE DEREGISTRATION FAILED.".encode())
+                                            else: # If no resources
+                                                client_socket.send("[-] No shared resources to deregister.".encode())
+                                        else:
+                                            client_socket.send("[-] YOU ARE NOT A USER IN THE NETWORK.".encode())
+                                
+                                elif action == "p":
+                                    print(f"Parts of resource request message: {parts}")
+                                    requesting_peer = peer_id
+                                    requesting_peer_from_parts = parts[1]
+                                    if requesting_peer != requesting_peer_from_parts:
+                                        client_socket.send("[!] Your peer_id does not match that of the message you sent...".encode())
+                                        break # Skip the rest of the stuff in this elif conditional
+                                    
+                                    resource_owner = parts[2]
+                                    resource_file_name = parts[3]
+                                    resource_file_extension = parts[4]
+                                    
+                                    response = request_file_transfer(requesting_peer, resource_owner, resource_file_name, resource_file_extension)
+                                    client_socket.send(response.encode())
                                 
                                 else:
                                     print(f"[-] Unknown command from {peer_id}: {action}")
                                     client_socket.send("[-] Unknown command.".encode())
-
+                        
                         except Exception as e:
                             print(f"[-] Error with {peer_id}: {e}")
                             break
-
+                
                 else:
                     print(f"[-] LOGIN FAILED! Incorrect credentials from {peer_id}.")
                     client_socket.send("[-] LOGIN FAILED! Incorrect credentials.".encode())
-
+            
             elif action == "register":
                 if peer_id in users:
                     client_socket.send("[-] REGISTRATION FAILED! Username already exists.".encode())
+                elif peer_id in online_users:
+                    client_socket.send("[-] REGISTRATION FAILED! You're already logged in??".encode())
                 else:
                     hashed_password = hashlib.sha256(peer_password.encode()).hexdigest()
                     save_user(peer_id, hashed_password)
                     users[peer_id] = hashed_password
                     client_socket.send("[+] REGISTRATION SUCCESSFUL!".encode())
-
+            
             else:
                 client_socket.send("[-] Unknown command.".encode())
-
+    
     except Exception as e:
         print(f"[-] Error handling client {client_address}: {e}")
-
+    
     finally:
-        if peer_id in online_users:
-            online_users.remove(peer_id)
+        for user in online_users[:]:  # Iterate over a copy to avoid modifying while iterating
+            if user[0] == peer_id:
+                online_users.remove(user)
         client_socket.close()
         print(f"[-] Connection closed with {client_address}")
 

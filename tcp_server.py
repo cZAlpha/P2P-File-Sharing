@@ -85,6 +85,18 @@ def deregister_resource(resource_peer_id, resource_file_name, resource_file_exte
     return False
 
 
+# Function used to grab the ip and port address from the server information from a given peer
+def extract_ip_and_port(server_info):
+    # Remove the parentheses and split the string by the comma
+    ip, port = server_info.strip("()").split(", ")
+    
+    # Convert the IP and port into their correct types
+    ip = ip.strip("'")  # Remove the quotes around the IP
+    port = int(port)    # Convert the port into an integer
+    
+    return ip, port
+
+
 # Request a file transfer from one peer to another
 def request_file_transfer(requesting_peer, resource_owner, resource_file_name, resource_file_extension):
     """
@@ -106,9 +118,9 @@ def request_file_transfer(requesting_peer, resource_owner, resource_file_name, r
         if user[0] == resource_owner: 
             for resource in shared_resources: # Iterate over the shared_resources and check if the resource_to_check is in it
                 if resource[:3] == resource_to_check:  # If the resource is in the shared_resources list
-                    owner_server_info# Get the port and ip 
+                    owner_server_ip, owner_server_port = extract_ip_and_port(owner_server_info) # Extract the ip and port information
                     # Send the requesting peer the owner's contact information
-                    return f"[+] FILE AVAILABLE FROM {resource_owner}. CONTACTING THEM DIRECTLY @ {owner_server_info}"
+                    return f"a{SEPARATOR}{resource_owner}{SEPARATOR}{owner_server_ip}{SEPARATOR}{owner_server_port}"
     return "[-] FILE NOT AVAILABLE OR PEER OFFLINE."
 
 
@@ -177,7 +189,7 @@ def handle_client(client_socket, client_address):
                                         list_of_online_peer_ids.append(user[0]) # Only append the peer id not the server info
                                     client_socket.send(str(list_of_online_peer_ids).encode())
                                 
-                                elif action == "get_shared_resources":
+                                elif action == "l":
                                     print(f"[+] Get shared resources request from {peer_id}")
                                     client_socket.send(str(shared_resources).encode())
                                 
@@ -271,6 +283,7 @@ def start_server():
         while True:
             client_socket, client_address = server_socket.accept()
             client_thread = Thread(target=handle_client, args=(client_socket, client_address))
+            client_thread.daemon = True  # Ensures the thread stops if the main server exits
             client_thread.start()
     except KeyboardInterrupt:
         print("[+] Server shutting down...")

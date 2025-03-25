@@ -9,6 +9,8 @@ BUFFER_SIZE = 1024 # The number of bytes to be received/sent at once
 
 # List of tuples containing (peer_id, peer_password) of valid Peers
 # peer_list = [("czalpha", "password")]  # Commented out: No longer needed as users are stored in users.txt
+ADMIN_USERNAME = "admin" # Username for admin login
+ADMIN_PASSWORD = "memento_mori" # Password for admin login MUST MATCH
 
 # Communication conventions
 SEPARATOR = "<SEP>"
@@ -67,6 +69,7 @@ def handle_client(client_socket, client_address):
                 action = parts[0]
                 peer_id = parts[1]
                 peer_password = parts[2] if len(parts) > 2 else None
+                
 
                 if action == "login":
                     if peer_id in users and users[peer_id] == hashlib.sha256(peer_password.encode()).hexdigest():
@@ -74,7 +77,7 @@ def handle_client(client_socket, client_address):
                         client_socket.send("[+] LOGIN SUCCESSFUL!".encode())
                     else:
                         client_socket.send("[-] LOGIN FAILED! Incorrect credentials.".encode())
-
+                
                 elif action == "register":
                     if peer_id in users:
                         client_socket.send("[-] REGISTRATION FAILED! Username already exists.".encode())
@@ -83,9 +86,15 @@ def handle_client(client_socket, client_address):
                         save_user(peer_id, hashed_password)
                         users[peer_id] = hashed_password
                         client_socket.send("[+] REGISTRATION SUCCESSFUL!".encode())
-
+                
                 elif action == "get_online_users":
                     client_socket.send(str(online_users).encode())
+                
+                elif action == "admin_login":
+                    if peer_id == ADMIN_USERNAME and peer_password == ADMIN_PASSWORD:
+                        client_socket.send("[+] ADMIN LOGIN SUCCESSFUL!".encode())
+                    else:
+                        client_socket.send("[-] ADMIN LOGIN FAILED! Incorrect credentials.".encode())
 
             except Exception as e:
                 print(f"[-] Error handling client {client_address}: {e}")

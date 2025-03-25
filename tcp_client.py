@@ -1,5 +1,9 @@
 import hashlib  # For hashing passwords when logging in
-from socket import *
+import time  # timer and countdown
+import webbrowser  # For opening the browser
+from socket import *  # For socket programming
+
+from stegano import lsb  # For steganography
 
 # Global variables
 BUFFER_SIZE = 1024 # The number of bytes to be received/sent at once
@@ -13,6 +17,8 @@ USER_FILE_PATH = 'users.txt'  # Path to the file storing user ids and hashed pas
 SERVER_IP_ADDRESS = "127.0.0.1"
 SERVER_PORT = 12000
 
+
+ADMIN_USERNAME =   "admin"  # hardcoded Admin username for logging in
 # Communication conventions
 SEPARATOR = "<SEP>"
 
@@ -144,6 +150,48 @@ def get_online_users():
     print(f"[+] Fetching online users...")
     print(send_tcp_message((ip, port), message))
 
+def admin_login():
+    '''
+    Purpose:
+        Function to log in as an admin using steganography.
+        If the password is incorrect or left blank, redirect to a YouTube link.
+    '''
+    
+    print("\n[+] Admin Login")
+    ip = input('[+] Enter IP address: ') or SERVER_IP_ADDRESS
+    port = input('[+] Enter port: ') or SERVER_PORT
+    port = int(port)
+    
+    # Ask for the steganography image path
+    image_path = input('[+] Enter the path to the steganography image: ')
+    password = None  # Initialize password as None
+
+    if image_path:
+        try:
+            # Decode the password from the image
+            password = lsb.reveal(image_path)
+            print(f"[+] Password found in image: {password}")
+        except Exception as e:
+            print(f"[-] Error decoding password from image: {e}")
+
+    # If password is not decoded or left blank, start the countdown and redirect
+    if not password:
+        print("[-] Logging in ... have fun :)")
+        countdown_sequence = 3  # Set the countdown duration (in seconds)
+        for i in range(countdown_sequence, 0, -1):
+            print(f"[-] Redirecting in {i} seconds ...")
+            time.sleep(1)  # Wait for 1 second
+
+        # Redirect to YouTube
+        print("[-] Redirecting...")
+        webbrowser.open("https://www.youtube.com/watch?v=dQw4w9WgXcQ&ab_channel=RickAstley")
+        return
+
+    # If password is decoded, send it to the server
+    admin_login_message = f"admin_login{SEPARATOR}{ADMIN_USERNAME}{SEPARATOR}{password}"
+    print(f"[+] Sending admin login message: {admin_login_message}")
+    response = send_tcp_message((ip, port), admin_login_message)
+    print(response)
 
 def main():
     '''
@@ -151,9 +199,8 @@ def main():
         Main function to provide a menu for the user
     '''
     while True:
-        print("\n1. Login\n2. Register\n3. View Online Users\n4. Exit")
+        print("\n1. Login\n2. Register\n3. View Online Users\n4. Admin\n5. Exit")
         choice = input("Choose an option: ")
-
         if choice == "1":
             login()
         elif choice == "2":
@@ -161,6 +208,8 @@ def main():
         elif choice == "3":
             get_online_users()
         elif choice == "4":
+            admin_login()
+        elif choice == "5":
             break
         else:
             print("Invalid choice. Try again.")

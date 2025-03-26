@@ -211,7 +211,7 @@ def send_tcp_message(client_socket, message):
     return response
 
 
-def login(client_socket, peer_server_info):
+def login(client_socket, peer_server_info, peer_id="", peer_password=""):
     '''
     Purpose: 
         Function that logs the user into the server following our login protocol diagram
@@ -230,8 +230,9 @@ def login(client_socket, peer_server_info):
     # Initial console logging
     print("\n", "[+] Client instance is now active.", sep="")
     
-    peer_id = input('[+] Enter your Peer ID: ').strip()
-    peer_password = input('[+] Enter your password: ').strip()
+    if (peer_id == "" and peer_password == ""): # Default args. (not inputting them manually in the function call) will ask the user for their input
+        peer_id = input('[+] Enter your Peer ID: ').strip()
+        peer_password = input('[+] Enter your password: ').strip()
     
     # Login Message Construction
     hashed_password = hashlib.sha256(peer_password.encode()).hexdigest() # Hex digest of password (using byte digest requires more lines of code)

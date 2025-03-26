@@ -53,7 +53,7 @@ def start_server():
     server_socket = socket(AF_INET, SOCK_STREAM)
     server_socket.bind((SERVER_IP_ADDRESS, port_number))
     server_socket.listen(2)  # Allow only two connections (self, and optionally another peer)
-    print(f"[tcp_client.py] Server started at {SERVER_IP_ADDRESS}:{port_number}")
+    print(f"[second_tcp_client.py] Server started at {SERVER_IP_ADDRESS}:{port_number}")
     
     # Ensure the downloads directory exists
     os.makedirs("Downloads", exist_ok=True)
@@ -61,7 +61,7 @@ def start_server():
     def server_loop():
         while True:
             peer, addr = server_socket.accept()
-            print(f"[tcp_client.py] Connection from {addr}")
+            print(f"[second_tcp_client.py] Connection from {addr}")
             
             # Receive initial message (could be file metadata or normal message)
             message = peer.recv(BUFFER_SIZE).decode()
@@ -89,7 +89,7 @@ def start_server():
                             break
                         file.write(chunk)
                 
-                print(f"[tcp_client.py] File saved: {filepath}")
+                print(f"[second_tcp_client.py] File saved: {filepath}")
             if action == "p" and len(parts) == 5: # If the other peer wishes to request a resource from you
                 #p<SEP>client_0<SEP>client_1<SEP>Resource0<SEP>txt
                 requesting_peer_id = parts[1] or None
@@ -120,7 +120,7 @@ def start_server():
                     print("[!] Resource request message was not formatted correctly, was: ", message)
             else:
                 print(f"[+] Received message: {message}") # Receive the message
-                peer.send("[+] ACK from tcp_client.py".encode()) # Send an ACK
+                peer.send("[+] ACK from second_tcp_client.py".encode()) # Send an ACK
             
             peer.close() # Close the connection with the peer
     

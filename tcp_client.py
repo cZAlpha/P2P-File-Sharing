@@ -258,7 +258,12 @@ def logout(client_socket, peer_id):
     '''
     message = "logout" + SEPARATOR + peer_id
     response = send_tcp_message(client_socket, message)
-    print(response) # Print the response returned by the function 'send_tcp_message'
+    print(f"Response from server: {response}") # Print the response returned by the function 'send_tcp_message'
+    # Handle return statement using response
+    if response[1] == "+": # Login Successful
+        return True, peer_id
+    else:
+        return False, peer_id
 
 
 def check_user_exists(peer_id):
@@ -492,7 +497,7 @@ def main():
                         print(f"[!] Resource request was unsuccessful, response from server was {response}")
             
             elif choice == "6": # Logout
-                logout(client_socket, peer_id)
+                logout_status = logout(client_socket, peer_id)
                 for _ in range(20): # Make some white space
                     print("")
                 logged_in = False  # Reset logged_in to False to bring the user back to the login menu

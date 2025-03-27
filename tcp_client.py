@@ -211,7 +211,7 @@ def send_tcp_message(client_socket, message):
     return response
 
 
-def login(client_socket, peer_server_info):
+def login(client_socket, peer_server_info, peer_id="", peer_password=""):
     '''
     Purpose: 
         Function that logs the user into the server following our login protocol diagram
@@ -230,8 +230,9 @@ def login(client_socket, peer_server_info):
     # Initial console logging
     print("\n", "[+] Client instance is now active.", sep="")
     
-    peer_id = input('[+] Enter your Peer ID: ').strip()
-    peer_password = input('[+] Enter your password: ').strip()
+    if (peer_id == "" and peer_password == ""): # Default args. (not inputting them manually in the function call) will ask the user for their input
+        peer_id = input('[+] Enter your Peer ID: ').strip()
+        peer_password = input('[+] Enter your password: ').strip()
     
     # Login Message Construction
     hashed_password = hashlib.sha256(peer_password.encode()).hexdigest() # Hex digest of password (using byte digest requires more lines of code)
@@ -257,7 +258,12 @@ def logout(client_socket, peer_id):
     '''
     message = "logout" + SEPARATOR + peer_id
     response = send_tcp_message(client_socket, message)
-    print(response) # Print the response returned by the function 'send_tcp_message'
+    print(f"Response from server: {response}") # Print the response returned by the function 'send_tcp_message'
+    # Handle return statement using response
+    if response[1] == "+": # Login Successful
+        return True, peer_id
+    else:
+        return False, peer_id
 
 
 def check_user_exists(peer_id):
@@ -491,7 +497,7 @@ def main():
                         print(f"[!] Resource request was unsuccessful, response from server was {response}")
             
             elif choice == "6": # Logout
-                logout(client_socket, peer_id)
+                logout_status = logout(client_socket, peer_id)
                 for _ in range(20): # Make some white space
                     print("")
                 logged_in = False  # Reset logged_in to False to bring the user back to the login menu

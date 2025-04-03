@@ -1,6 +1,4 @@
 import hashlib  # For hashing passwords when logging in
-import webbrowser  # For opening the browser
-from stegano import lsb  # For steganography
 from socket import *
 import tkinter as tk
 from tkinter import filedialog
@@ -26,8 +24,6 @@ USER_FILE_PATH = 'users.txt'  # Path to the file storing user ids and hashed pas
 SERVER_IP_ADDRESS = "127.0.0.1"
 SERVER_PORT = 12000
 
-
-ADMIN_USERNAME =   "admin"  # hardcoded Admin username for logging in
 # Communication conventions
 SEPARATOR = "<SEP>"
 
@@ -57,7 +53,7 @@ def start_server():
     server_socket = socket(AF_INET, SOCK_STREAM)
     server_socket.bind((SERVER_IP_ADDRESS, port_number))
     server_socket.listen(2)  # Allow only two connections (self, and optionally another peer)
-    print(f"[tcp_client.py] Server started at {SERVER_IP_ADDRESS}:{port_number}")
+    print(f"[second_tcp_client.py] Server started at {SERVER_IP_ADDRESS}:{port_number}")
     
     # Ensure the downloads directory exists
     os.makedirs("Downloads", exist_ok=True)
@@ -65,7 +61,7 @@ def start_server():
     def server_loop():
         while True:
             peer, addr = server_socket.accept()
-            print(f"[tcp_client.py] Connection from {addr}")
+            print(f"[second_tcp_client.py] Connection from {addr}")
             
             # Receive initial message (could be file metadata or normal message)
             message = peer.recv(BUFFER_SIZE).decode()
@@ -93,7 +89,7 @@ def start_server():
                             break
                         file.write(chunk)
                 
-                print(f"[tcp_client.py] File saved: {filepath}")
+                print(f"[second_tcp_client.py] File saved: {filepath}")
             if action == "p" and len(parts) == 5: # If the other peer wishes to request a resource from you
                 #p<SEP>client_0<SEP>client_1<SEP>Resource0<SEP>txt
                 requesting_peer_id = parts[1] or None
@@ -124,7 +120,7 @@ def start_server():
                     print("[!] Resource request message was not formatted correctly, was: ", message)
             else:
                 print(f"[+] Received message: {message}") # Receive the message
-                peer.send("[+] ACK from tcp_client.py".encode()) # Send an ACK
+                peer.send("[+] ACK from second_tcp_client.py".encode()) # Send an ACK
             
             peer.close() # Close the connection with the peer
     
@@ -215,7 +211,7 @@ def send_tcp_message(client_socket, message):
     return response
 
 
-def login(client_socket, peer_server_info, peer_id="", peer_password=""):
+def login(client_socket, peer_server_info):
     '''
     Purpose: 
         Function that logs the user into the server following our login protocol diagram
@@ -234,9 +230,8 @@ def login(client_socket, peer_server_info, peer_id="", peer_password=""):
     # Initial console logging
     print("\n", "[+] Client instance is now active.", sep="")
     
-    if (peer_id == "" and peer_password == ""): # Default args. (not inputting them manually in the function call) will ask the user for their input
-        peer_id = input('[+] Enter your Peer ID: ').strip()
-        peer_password = input('[+] Enter your password: ').strip()
+    peer_id = input('[+] Enter your Peer ID: ').strip()
+    peer_password = input('[+] Enter your password: ').strip()
     
     # Login Message Construction
     hashed_password = hashlib.sha256(peer_password.encode()).hexdigest() # Hex digest of password (using byte digest requires more lines of code)
@@ -262,12 +257,7 @@ def logout(client_socket, peer_id):
     '''
     message = "logout" + SEPARATOR + peer_id
     response = send_tcp_message(client_socket, message)
-    print(f"Response from server: {response}") # Print the response returned by the function 'send_tcp_message'
-    # Handle return statement using response
-    if response[1] == "+": # Login Successful
-        return True, peer_id
-    else:
-        return False, peer_id
+    print(response) # Print the response returned by the function 'send_tcp_message'
 
 
 def check_user_exists(peer_id):
@@ -419,48 +409,6 @@ def request_file_from_peer(client_socket, self_peer_id, resource_owner, resource
     return response
 
 
-def admin_login():
-    '''
-    Purpose:
-        Function to log in as an admin using steganography.
-        If the password is incorrect or left blank, redirect to a YouTube link.
-    '''
-    
-    print("\n[+] Admin Login")
-    ip = input('[+] Enter IP address: ') or SERVER_IP_ADDRESS
-    port = input('[+] Enter port: ') or SERVER_PORT
-    port = int(port)
-    
-    # Ask for the steganography image path
-    image_path = input('[+] Enter the path to the steganography image: ')
-    password = None  # Initialize password as None
-
-    if image_path:
-        try:
-            # Decode the password from the image
-            password = lsb.reveal(image_path)
-            print(f"[+] Password found in image: {password}")
-        except Exception as e:
-            print(f"[-] Error decoding password from image: {e}")
-
-    # If password is not decoded or left blank, start the countdown and redirect
-    if not password:
-        print("[-] Logging in ... have fun :)")
-        countdown_sequence = 3  # Set the countdown duration (in seconds)
-        for i in range(countdown_sequence, 0, -1):
-            print(f"[-] Redirecting in {i} seconds ...")
-            time.sleep(1)  # Wait for 1 second
-
-        # Redirect to YouTube
-        print("[-] Redirecting...")
-        webbrowser.open("https://www.youtube.com/watch?v=dQw4w9WgXcQ&ab_channel=RickAstley")
-        return
-
-    # If password is decoded, send it to the server
-    admin_login_message = f"admin_login{SEPARATOR}{ADMIN_USERNAME}{SEPARATOR}{password}"
-    print(f"[+] Sending admin login message: {admin_login_message}")
-    response = send_tcp_message((ip, port), admin_login_message)
-    print(response)
 
 def main():
     '''
@@ -474,27 +422,26 @@ def main():
     # Connect to the server and ensure connection persistence
     client_socket = create_persistent_connection(SERVER_IP_ADDRESS, SERVER_PORT) 
     
-    logged_in = False  # Keeps track of if the user is logged in or not
-    peer_id = ""  # The peer's ID
+    logged_in = False # Keeps track of if the user is logged in or not
     
-    while True:  # Loop infinitely until the user exits
+    peer_id = "" # The peer's id
+    
+    while True:  # Changed to loop infinitely until the user exits
         if not logged_in:
-            print("\n1. Login\n2. Admin Login\n3. Register\n4. Exit")
+            print("\n1. Login\n2. Register\n3. Exit")
             choice = input("Choose an option: ")
             
-            if choice == "1":  # User login
+            if choice == "1": # Log in
                 logged_in, returned_peer_id = login(client_socket, peer_server_socket.getsockname())
                 peer_id = returned_peer_id
-                for _ in range(20):  # Create some white space
+                for _ in range(20): # Create some white space
                     print("")
-            elif choice == "2":  # Admin login
-                admin_login()
-            elif choice == "3":  # Register
+            elif choice == "2": # Register
                 register(client_socket)
                 print("")  # Add a new line and then force them to login
                 logged_in, returned_peer_id = login(client_socket)
                 peer_id = returned_peer_id
-            elif choice == "4":  # Exit
+            elif choice == "3": # Exit
                 return  # Exit the program
             else:
                 print("Invalid choice. Try again.")
@@ -503,53 +450,54 @@ def main():
             print("\n1. View Online Users\n2. View Shared Resources\n3. Register a Resource\n4. Deregister Resource\n5. Request Resource\n6. Logout")
             choice = input("Choose an option: ")
             
-            if choice == "1":  # Get Online Users
+            if choice == "1": # Get Online Users
                 online_users = get_online_users(client_socket)
-            elif choice == "2":  # Get Shared Resources
+            elif choice == "2": # Get Shared Resources
                 shared_resources = get_shared_resources(client_socket)
-            elif choice == "3":  # Register a Resource
+            elif choice == "3": # Register a Resource
                 register_resource(client_socket, peer_id)
             elif choice == "4":  # Deregister Resource
-                print("")  # Add some white space
+                print("") # Add some white space
                 resource_peer_id = input("[?] Enter resource peer ID: ")
                 resource_file_name = input("[?] Enter resource file name: ")
                 resource_file_extension = input("[?] Enter resource file extension: ")
-                deregister_resource(client_socket, resource_peer_id, resource_file_name, resource_file_extension)
-            elif choice == "5":  # Request a Resource
-                resource_owner = input("[?] Enter resource owner peer ID: ")
+                deregister_resource(client_socket, resource_peer_id, resource_file_name, resource_file_extension) # No need to keep var with returned value, as this function prints the server response itself
+            elif choice == "5":
+                resource_owner = input("[?] Enter resource owner peer id: ")
                 resource_file_name = input("[?] Enter resource file name: ")
                 resource_file_extension = input("[?] Enter resource file extension: ")
                 
-                # Server should respond with the other peer's server IP and port if the resource is available
+                # Server should respond with the other peer's server ip and port # if the resource is available
                 response = request_file_from_peer(client_socket, peer_id, resource_owner, resource_file_name, resource_file_extension)
                 print("[DEBUG] Response from server after requesting file was: ", response)
-                if SEPARATOR not in response:  # Check for formatting
-                    print("[!] ERROR: Server's response was not formatted correctly.")
-                else:  # If the message was formatted correctly
+                if SEPARATOR not in response: # check for formatting
+                    print("[!] ERROR: Server's response was not formatted correctly. Was: ", response, " | MUST have <SEP> in it!")
+                else: # If the message was formatted correctly
                     response_parts = response.split(SEPARATOR)
                     action = response_parts[0]
-                    if action == "a" and len(response_parts) == 4:  # If request was successful
+                    if action == "a" and len(response_parts) == 4: # If request was successful (action was ACK)
                         returned_peer_id = response_parts[1]
-                        if resource_owner != returned_peer_id:  # Check that peer IDs match
-                            print("[!] ERROR: Requested resource owner's peer ID does not match ACK'ed peer ID...")
+                        if resource_owner != returned_peer_id: # Check that peer id's match
+                            print("[!] ERROR: Requested resource owner's peer ID does not match ACK'ed peer id...")
                         peer_server_ip = response_parts[2]
                         peer_server_port = response_parts[3] 
-                        print(f"[+] Resource request successful! Trying to connect to peer's server @ {peer_server_ip}:{peer_server_port}...")
-                        status = connect_to_peer(peer_server_ip, peer_server_port, peer_id, resource_owner, resource_file_name, resource_file_extension)
-                        if status:
-                            print("[+] Resource received successfully!")
-                        else:
-                            print("[-] Resource transfer failed.")
+                        print(f"[+] Resource request was successful! Trying to connect to peer's server @ {peer_server_ip}:{peer_server_port}...")
+                        status = connect_to_peer(peer_server_ip, peer_server_port, peer_id, resource_owner, resource_file_name, resource_file_extension) # Connect to that peer's server and get the file
+                        if status: # If it worked
+                            print("[+] Resource was requested and received!")
+                        else: # If it failed for any reason
+                            print("[-] Resource was not able to be received.")
                     else:
                         print(f"[!] Resource request was unsuccessful, response from server was {response}")
             
-            elif choice == "6":  # Logout
-                logout_status = logout(client_socket, peer_id)
-                for _ in range(20):  # Create some white space
+            elif choice == "6": # Logout
+                logout(client_socket, peer_id)
+                for _ in range(20): # Make some white space
                     print("")
                 logged_in = False  # Reset logged_in to False to bring the user back to the login menu
             else:
                 print("Invalid choice. Try again.")
 
+
 if __name__ == '__main__':
-    main()  # Upon running this file, call the main function
+    main() # Upon running this file, call the main function

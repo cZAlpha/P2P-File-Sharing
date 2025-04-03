@@ -7,6 +7,7 @@ import random
 import time
 import threading
 import sys
+import datetime
 
 
 # NOTE:
@@ -350,6 +351,7 @@ def get_shared_resources(client_socket):
 
 
 def register_resource(client_socket, resource_peer_id):
+    last_modified = datetime.datetime.now()
     """
     Opens a file selection dialog and registers the selected file.
     """
@@ -372,7 +374,7 @@ def register_resource(client_socket, resource_peer_id):
     resource_file_size = str(os.path.getsize(file_path))
     
     SEPARATOR = "<SEP>"
-    message = ("r" + SEPARATOR + resource_peer_id + SEPARATOR + resource_file_name + SEPARATOR + resource_file_extension + SEPARATOR + resource_file_size)
+    message = ("r" + SEPARATOR + resource_peer_id + SEPARATOR + resource_file_name + SEPARATOR + resource_file_extension + SEPARATOR + resource_file_size + SEPARATOR + last_modified)
     
     response = send_tcp_message(client_socket, message)
     print(f"[+] Resource Registered: {response}")

@@ -3,6 +3,11 @@ import socket
 from threading import Thread
 
 
+# List of tuples containing (peer_id, peer_password) of valid Peers
+# peer_list = [("czalpha", "password")]  # Commented out: No longer needed as users are stored in users.txt
+ADMIN_USERNAME = "admin" # Username for admin login
+ADMIN_PASSWORD = "memento_mori" # Password for admin login MUST MATCH
+
 # Global variables
 Server_IP = '127.0.0.1'  # Localhost; replace with IP address if needed
 Server_PORT = 12000  # Port number; replace with desired port number
@@ -241,12 +246,17 @@ def handle_client(client_socket, client_address):
                         
                         except Exception as e:
                             print(f"[-] Error with {peer_id}: {e}")
-                            break
-                
+                            break              
                 else:
                     print(f"[-] LOGIN FAILED! Incorrect credentials from {peer_id}.")
                     client_socket.send("[-] LOGIN FAILED! Incorrect credentials.".encode())
             
+            if action == "admin_login":
+                    if peer_id == ADMIN_USERNAME and peer_password == ADMIN_PASSWORD:
+                        client_socket.send("[+] ADMIN LOGIN SUCCESSFUL!".encode())
+                    else:
+                        client_socket.send("[-] ADMIN LOGIN FAILED! Incorrect credentials.".encode())
+                      
             elif action == "register":
                 if peer_id in users:
                     client_socket.send("[-] REGISTRATION FAILED! Username already exists.".encode())
@@ -260,7 +270,7 @@ def handle_client(client_socket, client_address):
             
             else:
                 client_socket.send("[-] Unknown command.".encode())
-    
+   
     except Exception as e:
         print(f"[-] Error handling client {client_address}: {e}")
     

@@ -7,6 +7,7 @@ import random
 import time
 import threading
 import sys
+import datetime
 
 
 # NOTE:
@@ -53,7 +54,7 @@ def start_server():
     server_socket = socket(AF_INET, SOCK_STREAM)
     server_socket.bind((SERVER_IP_ADDRESS, port_number))
     server_socket.listen(2)  # Allow only two connections (self, and optionally another peer)
-    print(f"[second_tcp_client.py] Server started at {SERVER_IP_ADDRESS}:{port_number}")
+    print(f"[tcp_client.py] Server started at {SERVER_IP_ADDRESS}:{port_number}")
     
     # Ensure the downloads directory exists
     os.makedirs("Downloads", exist_ok=True)
@@ -61,7 +62,7 @@ def start_server():
     def server_loop():
         while True:
             peer, addr = server_socket.accept()
-            print(f"[second_tcp_client.py] Connection from {addr}")
+            print(f"[tcp_client.py] Connection from {addr}")
             
             # Receive initial message (could be file metadata or normal message)
             message = peer.recv(BUFFER_SIZE).decode()
@@ -89,7 +90,7 @@ def start_server():
                             break
                         file.write(chunk)
                 
-                print(f"[second_tcp_client.py] File saved: {filepath}")
+                print(f"[tcp_client.py] File saved: {filepath}")
             if action == "p" and len(parts) == 5: # If the other peer wishes to request a resource from you
                 #p<SEP>client_0<SEP>client_1<SEP>Resource0<SEP>txt
                 requesting_peer_id = parts[1] or None
@@ -120,7 +121,7 @@ def start_server():
                     print("[!] Resource request message was not formatted correctly, was: ", message)
             else:
                 print(f"[+] Received message: {message}") # Receive the message
-                peer.send("[+] ACK from second_tcp_client.py".encode()) # Send an ACK
+                peer.send("[+] ACK from tcp_client.py".encode()) # Send an ACK
             
             peer.close() # Close the connection with the peer
     
@@ -211,7 +212,7 @@ def send_tcp_message(client_socket, message):
     return response
 
 
-def login(client_socket, peer_server_info):
+def login(client_socket, peer_server_info, peer_id="", peer_password=""):
     '''
     Purpose: 
         Function that logs the user into the server following our login protocol diagram
@@ -230,8 +231,9 @@ def login(client_socket, peer_server_info):
     # Initial console logging
     print("\n", "[+] Client instance is now active.", sep="")
     
-    peer_id = input('[+] Enter your Peer ID: ').strip()
-    peer_password = input('[+] Enter your password: ').strip()
+    if (peer_id == "" and peer_password == ""): # Default args. (not inputting them manually in the function call) will ask the user for their input
+        peer_id = input('[+] Enter your Peer ID: ').strip()
+        peer_password = input('[+] Enter your password: ').strip()
     
     # Login Message Construction
     hashed_password = hashlib.sha256(peer_password.encode()).hexdigest() # Hex digest of password (using byte digest requires more lines of code)
@@ -257,7 +259,12 @@ def logout(client_socket, peer_id):
     '''
     message = "logout" + SEPARATOR + peer_id
     response = send_tcp_message(client_socket, message)
-    print(response) # Print the response returned by the function 'send_tcp_message'
+    print(f"Response from server: {response}") # Print the response returned by the function 'send_tcp_message'
+    # Handle return statement using response
+    if response[1] == "+": # Login Successful
+        return True, peer_id
+    else:
+        return False, peer_id
 
 
 def check_user_exists(peer_id):
@@ -364,9 +371,10 @@ def register_resource(client_socket, resource_peer_id):
     resource_file_name = os.path.splitext(os.path.basename(file_path))[0]
     resource_file_extension = os.path.splitext(file_path)[1][1:]  # Remove leading '.'
     resource_file_size = str(os.path.getsize(file_path))
+    last_modified_timestamp = str(os.path.getmtime(file_path)) # Get last modified timestamp    
     
     SEPARATOR = "<SEP>"
-    message = ("r" + SEPARATOR + resource_peer_id + SEPARATOR + resource_file_name + SEPARATOR + resource_file_extension + SEPARATOR + resource_file_size)
+    message = ("r" + SEPARATOR + resource_peer_id + SEPARATOR + resource_file_name + SEPARATOR + resource_file_extension + SEPARATOR + resource_file_size + SEPARATOR + last_modified_timestamp)
     
     response = send_tcp_message(client_socket, message)
     print(f"[+] Resource Registered: {response}")
@@ -491,7 +499,7 @@ def main():
                         print(f"[!] Resource request was unsuccessful, response from server was {response}")
             
             elif choice == "6": # Logout
-                logout(client_socket, peer_id)
+                logout_status = logout(client_socket, peer_id)
                 for _ in range(20): # Make some white space
                     print("")
                 logged_in = False  # Reset logged_in to False to bring the user back to the login menu

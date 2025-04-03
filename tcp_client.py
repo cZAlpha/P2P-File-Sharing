@@ -7,6 +7,7 @@ import random
 import time
 import threading
 import sys
+import datetime
 
 
 # NOTE:
@@ -370,9 +371,10 @@ def register_resource(client_socket, resource_peer_id):
     resource_file_name = os.path.splitext(os.path.basename(file_path))[0]
     resource_file_extension = os.path.splitext(file_path)[1][1:]  # Remove leading '.'
     resource_file_size = str(os.path.getsize(file_path))
+    last_modified_timestamp = str(os.path.getmtime(file_path)) # Get last modified timestamp    
     
     SEPARATOR = "<SEP>"
-    message = ("r" + SEPARATOR + resource_peer_id + SEPARATOR + resource_file_name + SEPARATOR + resource_file_extension + SEPARATOR + resource_file_size)
+    message = ("r" + SEPARATOR + resource_peer_id + SEPARATOR + resource_file_name + SEPARATOR + resource_file_extension + SEPARATOR + resource_file_size + SEPARATOR + last_modified_timestamp)
     
     response = send_tcp_message(client_socket, message)
     print(f"[+] Resource Registered: {response}")

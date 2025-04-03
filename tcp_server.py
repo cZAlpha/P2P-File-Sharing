@@ -1,6 +1,7 @@
+from threading import Thread
+import datetime
 import hashlib
 import socket
-from threading import Thread
 
 
 # Global variables
@@ -44,27 +45,38 @@ def save_user(username, password):
 
 
 # Register a new resource
-def register_resource(resource_peer_id, resource_file_name, resource_file_extension, resource_file_size):
+def register_resource(resource_peer_id, resource_file_name, resource_file_extension, resource_file_size, resource_date_modified):
     """
-    Purpose: This function appends a resource to the shared_resources list
+    Purpose: This function appends a resource to the shared_resources list.
+    
     Args:
-        resource_peer_id: The peer ID of the Peer who has the resource
-        resource_file_name: The name of the file to be deregistered
-        resource_file_extension: The file extension
-        resource_file_size: The size of the file in bytes
+        resource_peer_id: The peer ID of the Peer who has the resource.
+        resource_file_name: The name of the file to be registered.
+        resource_file_extension: The file extension.
+        resource_file_size: The size of the file in bytes.
+        resource_date_modified: The last modified date of the file.
+    
     Returns:
-        True if resource was added to the list with no issues, otherwise false
+        True if the resource was added successfully, otherwise False.
     """
     
-    # If all args were given
-    if (resource_peer_id and resource_file_name and resource_file_extension and resource_file_size):
-        resource = (resource_peer_id, resource_file_name, resource_file_extension, resource_file_size)
-        # If the resource ain't a repeat, add it and return true
-        if resource not in shared_resources:
-            shared_resources.append(resource)
-            return True
-    # Otherwise return false
-    return False
+    # Ensure all required arguments are provided
+    if not resource_peer_id or not resource_file_name or not resource_file_extension or not resource_date_modified:
+        return False  
+    
+    # Define the resource without timestamp (used to check for older versions)
+    resource_id = (resource_peer_id, resource_file_name, resource_file_extension)
+    
+    # Find and remove any existing resource with the same peer, file name, and extension
+    for res in shared_resources[:]:  # Iterate over a copy to avoid modifying during loop
+        if res[:3] == resource_id:  # Match peer, name, and extension (ignore size/timestamp)
+            shared_resources.remove(res)  # Remove outdated version
+    
+    # Add the new resource
+    new_resource = (resource_peer_id, resource_file_name, resource_file_extension, resource_file_size, resource_date_modified)
+    shared_resources.append(new_resource)
+    
+    return True
 
 
 # Deregister an existing resource
@@ -173,6 +185,7 @@ def handle_client(client_socket, client_address):
                                 resource_file_name = parts[2] if len(parts) > 2 else None
                                 resource_file_extension = parts[3] if len(parts) > 3 else None
                                 resource_file_size = parts[4] if len(parts) > 4 else None
+                                resource_date_modified = parts[5] if len(parts) > 5 else None
                                 
                                 if action == "logout":
                                     for user in online_users[:]:  # Iterate over a copy to avoid modifying while iterating
@@ -191,20 +204,31 @@ def handle_client(client_socket, client_address):
                                 
                                 elif action == "l":
                                     print(f"[+] Get shared resources request from {peer_id}")
-                                    client_socket.send(str(shared_resources).encode())
+                                    # Convert timestamp to human-readable format
+                                    formatted_resources = []
+                                    for resource in shared_resources:
+                                        peer_id, file_name, file_extension, file_size, timestamp = resource
+                                        readable_timestamp = datetime.datetime.fromtimestamp(float(timestamp)).strftime('%Y-%m-%d %H:%M:%S')
+                                        formatted_resources.append((peer_id, file_name, file_extension, file_size, readable_timestamp))
+                                    
+                                    client_socket.send(str(formatted_resources).encode())
                                 
                                 elif action == "r":
-                                    print(f"[+] Register resource request from {peer_id}")
+                                    print(f"[+] Register resource request from {resource_peer_id}")
                                     peer_is_online = False
                                     for user in online_users: # Check if the peer is online
                                         if user[0] == peer_id:
                                             peer_is_online = True
-                                    if peer_is_online and register_resource(peer_id, resource_file_name, resource_file_extension, resource_file_size):
+                                    if peer_is_online and register_resource(resource_peer_id, resource_file_name, resource_file_extension, resource_file_size, resource_date_modified):
                                         print(f"[+] Resource {resource_file_name}.{resource_file_extension} added.")
                                         client_socket.send(f"[+] Resource {resource_file_name}.{resource_file_extension} was added.".encode())
                                     else:
-                                        print("[-] Resource was not added. Possible duplicate or not an active peer.")
-                                        client_socket.send("[-] Resource was not added. Possible duplicate or not an active peer.".encode())
+                                        if not peer_is_online: # If the peer wasn't online and that threw an error
+                                            print("[-] Resource was not added because the peer registering the resource is not online. This is an error with out code!")
+                                            client_socket.send("[-] Resource was not added because the peer registering the resource is not online. This is an error with out code!".encode())
+                                        else: # If the peer WAS online but there was a dup or some other issue
+                                            print("[-] Resource was not added. Likely a perfect duplicate file.")
+                                            client_socket.send("[-] Resource was not added. Likely a perfect duplicate file.".encode())
                                 
                                 elif action == "d":
                                     # TODO: Only allow the user whose file it is to de-register the resource (this requires a slight restructure of the 'd' message format!)

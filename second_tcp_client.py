@@ -1,7 +1,7 @@
 import hashlib  # For hashing passwords when logging in
 from socket import *
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import filedialog, messagebox, scrolledtext, ttk
 import os
 import random
 import time
@@ -27,6 +27,288 @@ SERVER_PORT = 12000
 
 # Communication conventions
 SEPARATOR = "<SEP>"
+
+
+class P2PClientGUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("P2P Client")
+        self.root.geometry("800x600")
+        
+        # Client state
+        self.logged_in = False
+        self.peer_id = ""
+        self.client_socket = None
+        self.peer_server_socket = None
+        
+        # Start the server in the background
+        self.start_server()
+        
+        # Create connection to main server
+        self.connect_to_server()
+        
+        # Create UI
+        self.create_login_ui()
+        
+    def connect_to_server(self):
+        try:
+            self.client_socket = create_persistent_connection(SERVER_IP_ADDRESS, SERVER_PORT)
+        except Exception as e:
+            messagebox.showerror("Connection Error", f"Failed to connect to server: {e}")
+            self.root.quit()
+    
+    def start_server(self):
+        """Starts the local server in a background thread."""
+        def server_thread():
+            self.peer_server_socket = start_server()
+        
+        threading.Thread(target=server_thread, daemon=True).start()
+    
+    def create_login_ui(self):
+        """Creates the login/registration UI."""
+        self.clear_window()
+        
+        frame = ttk.Frame(self.root, padding="20")
+        frame.pack(expand=True, fill=tk.BOTH)
+        
+        ttk.Label(frame, text="Peer ID:").grid(row=0, column=0, sticky=tk.W, pady=5)
+        self.peer_id_entry = ttk.Entry(frame)
+        self.peer_id_entry.grid(row=0, column=1, sticky=tk.EW, pady=5)
+        
+        ttk.Label(frame, text="Password:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        self.password_entry = ttk.Entry(frame, show="*")
+        self.password_entry.grid(row=1, column=1, sticky=tk.EW, pady=5)
+        
+        button_frame = ttk.Frame(frame)
+        button_frame.grid(row=2, column=0, columnspan=2, pady=10)
+        
+        ttk.Button(button_frame, text="Login", command=self.handle_login).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Register", command=self.handle_register).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Exit", command=self.root.quit).pack(side=tk.LEFT, padx=5)
+        
+        frame.columnconfigure(1, weight=1)
+    
+    def create_main_ui(self):
+        """Creates the main application UI after login."""
+        self.clear_window()
+        
+        # Main frame
+        main_frame = ttk.Frame(self.root)
+        main_frame.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
+        
+        # Output console
+        self.console = scrolledtext.ScrolledText(main_frame, state='disabled', height=15)
+        self.console.pack(expand=True, fill=tk.BOTH, pady=(0, 10))
+        
+        # Button frame
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X, pady=5)
+        
+        buttons = [
+            ("Online Users", self.view_online_users),
+            ("Shared Resources", self.view_shared_resources),
+            ("Register Resource", self.register_resource),
+            ("Deregister Resource", self.deregister_resource_prompt),
+            ("Request Resource", self.request_resource_prompt),
+            ("Logout", self.handle_logout)
+        ]
+        
+        for i, (text, command) in enumerate(buttons):
+            ttk.Button(button_frame, text=text, command=command).grid(
+                row=i//3, column=i%3, padx=5, pady=5, sticky=tk.NSEW
+            )
+            button_frame.columnconfigure(i%3, weight=1)
+        
+        button_frame.rowconfigure(0, weight=1)
+        button_frame.rowconfigure(1, weight=1)
+    
+    def clear_window(self):
+        """Clears all widgets from the root window."""
+        for widget in self.root.winfo_children():
+            widget.destroy()
+    
+    def log_message(self, message):
+        """Logs a message to the console."""
+        self.console.configure(state='normal')
+        self.console.insert(tk.END, f"{message}\n")
+        self.console.configure(state='disabled')
+        self.console.see(tk.END)
+    
+    def handle_login(self):
+        """Handles the login process."""
+        peer_id = self.peer_id_entry.get().strip()
+        password = self.password_entry.get().strip()
+        
+        if not peer_id or not password:
+            messagebox.showerror("Error", "Peer ID and password are required")
+            return
+        
+        peer_server_info = self.peer_server_socket.getsockname()
+        self.logged_in, self.peer_id = login(self.client_socket, peer_server_info, peer_id, password)
+        
+        if self.logged_in:
+            self.create_main_ui()
+            self.log_message(f"Successfully logged in as {self.peer_id}")
+        else:
+            messagebox.showerror("Login Failed", "Invalid credentials or server error")
+    
+    def handle_register(self):
+        """Handles the registration process."""
+        peer_id = self.peer_id_entry.get().strip()
+        password = self.password_entry.get().strip()
+        
+        if not peer_id or not password:
+            messagebox.showerror("Error", "Peer ID and password are required")
+            return
+        
+        if check_user_exists(peer_id):
+            messagebox.showerror("Error", "Peer ID already exists")
+            return
+        
+        hashed_password = hashlib.sha256(password.encode()).hexdigest()
+        register_message = f"register{SEPARATOR}{peer_id}{SEPARATOR}{hashed_password}"
+        response = send_tcp_message(self.client_socket, register_message)
+        
+        if response[1] == "+":
+            messagebox.showinfo("Success", "Registration successful! Please log in.")
+        else:
+            messagebox.showerror("Error", "Registration failed")
+    
+    def handle_logout(self):
+        """Handles the logout process."""
+        if logout(self.client_socket, self.peer_id):
+            self.logged_in = False
+            self.peer_id = ""
+            self.create_login_ui()
+    
+    def view_online_users(self):
+        """Displays online users."""
+        response = get_online_users(self.client_socket)
+        self.log_message(f"Online users: {response}")
+    
+    def view_shared_resources(self):
+        """Displays shared resources."""
+        response = get_shared_resources(self.client_socket)
+        self.log_message(f"Shared resources: {response}")
+    
+    def register_resource(self):
+        """Handles resource registration."""
+        if not self.logged_in:
+            messagebox.showerror("Error", "You must be logged in")
+            return
+            
+        file_path = filedialog.askopenfilename()
+        if not file_path:
+            return
+            
+        resource_file_name = os.path.splitext(os.path.basename(file_path))[0]
+        resource_file_extension = os.path.splitext(file_path)[1][1:]
+        resource_file_size = str(os.path.getsize(file_path))
+        last_modified_timestamp = str(os.path.getmtime(file_path))
+        
+        message = (f"r{SEPARATOR}{self.peer_id}{SEPARATOR}{resource_file_name}"
+                   f"{SEPARATOR}{resource_file_extension}{SEPARATOR}{resource_file_size}"
+                   f"{SEPARATOR}{last_modified_timestamp}")
+        
+        response = send_tcp_message(self.client_socket, message)
+        self.log_message(f"Resource registration response: {response}")
+    
+    def deregister_resource_prompt(self):
+        """Shows a dialog to deregister a resource."""
+        if not self.logged_in:
+            messagebox.showerror("Error", "You must be logged in")
+            return
+            
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Deregister Resource")
+        dialog.geometry("400x200")
+        
+        ttk.Label(dialog, text="Resource Peer ID:").pack(pady=5)
+        peer_id_entry = ttk.Entry(dialog)
+        peer_id_entry.insert(0, self.peer_id)
+        peer_id_entry.pack(fill=tk.X, padx=20, pady=5)
+        
+        ttk.Label(dialog, text="File Name:").pack(pady=5)
+        file_name_entry = ttk.Entry(dialog)
+        file_name_entry.pack(fill=tk.X, padx=20, pady=5)
+        
+        ttk.Label(dialog, text="File Extension:").pack(pady=5)
+        file_ext_entry = ttk.Entry(dialog)
+        file_ext_entry.pack(fill=tk.X, padx=20, pady=5)
+        
+        def do_deregister():
+            peer_id = peer_id_entry.get().strip()
+            file_name = file_name_entry.get().strip()
+            file_ext = file_ext_entry.get().strip()
+            
+            if not peer_id or not file_name or not file_ext:
+                messagebox.showerror("Error", "All fields are required")
+                return
+                
+            response = deregister_resource(self.client_socket, peer_id, file_name, file_ext)
+            self.log_message(f"Deregistration response: {response}")
+            dialog.destroy()
+        
+        ttk.Button(dialog, text="Deregister", command=do_deregister).pack(pady=10)
+    
+    def request_resource_prompt(self):
+        """Shows a dialog to request a resource."""
+        if not self.logged_in:
+            messagebox.showerror("Error", "You must be logged in")
+            return
+            
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Request Resource")
+        dialog.geometry("400x250")
+        
+        ttk.Label(dialog, text="Resource Owner Peer ID:").pack(pady=5)
+        owner_entry = ttk.Entry(dialog)
+        owner_entry.pack(fill=tk.X, padx=20, pady=5)
+        
+        ttk.Label(dialog, text="File Name:").pack(pady=5)
+        file_name_entry = ttk.Entry(dialog)
+        file_name_entry.pack(fill=tk.X, padx=20, pady=5)
+        
+        ttk.Label(dialog, text="File Extension:").pack(pady=5)
+        file_ext_entry = ttk.Entry(dialog)
+        file_ext_entry.pack(fill=tk.X, padx=20, pady=5)
+        
+        def do_request():
+            owner = owner_entry.get().strip()
+            file_name = file_name_entry.get().strip()
+            file_ext = file_ext_entry.get().strip()
+            
+            if not owner or not file_name or not file_ext:
+                messagebox.showerror("Error", "All fields are required")
+                return
+                
+            response = request_file_from_peer(self.client_socket, self.peer_id, owner, file_name, file_ext)
+            self.log_message(f"Resource request response: {response}")
+            
+            if SEPARATOR in response:
+                response_parts = response.split(SEPARATOR)
+                action = response_parts[0]
+                if action == "a" and len(response_parts) == 4:
+                    returned_peer_id = response_parts[1]
+                    if owner != returned_peer_id:
+                        self.log_message("[!] ERROR: Peer ID mismatch")
+                        return
+                        
+                    peer_server_ip = response_parts[2]
+                    peer_server_port = response_parts[3]
+                    
+                    self.log_message(f"Connecting to peer's server @ {peer_server_ip}:{peer_server_port}...")
+                    status = connect_to_peer(peer_server_ip, peer_server_port, self.peer_id, 
+                                           owner, file_name, file_ext)
+                    
+                    if status:
+                        self.log_message("[+] Resource received successfully!")
+                    else:
+                        self.log_message("[-] Failed to receive resource")
+            
+            dialog.destroy()
+        
+        ttk.Button(dialog, text="Request", command=do_request).pack(pady=10)
 
 
 def create_persistent_connection(ip, port):
@@ -507,5 +789,10 @@ def main():
                 print("Invalid choice. Try again.")
 
 
+def main():
+    root = tk.Tk()
+    app = P2PClientGUI(root)
+    root.mainloop()
+
 if __name__ == '__main__':
-    main() # Upon running this file, call the main function
+    main()

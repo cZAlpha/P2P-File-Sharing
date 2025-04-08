@@ -437,6 +437,7 @@ class P2PClientGUI:
         
         ttk.Button(dialog, text="Request", command=do_request).pack(pady=10)
 
+
 def create_persistent_connection(ip, port):
     '''
     Purpose: 

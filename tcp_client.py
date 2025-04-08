@@ -29,11 +29,22 @@ SERVER_PORT = 12000
 SEPARATOR = "<SEP>"
 
 
+import tkinter as tk
+from tkinter import ttk, messagebox, scrolledtext, filedialog
+import os
+import hashlib
+import threading
+
+
 class P2PClientGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("P2P Client")
-        self.root.geometry("800x600")
+        self.root.geometry("900x650")
+        
+        # Configure modern theme
+        self.root.tk.call('source', 'themes/azure.tcl')  # You'll need to include azure.tcl theme file
+        self.root.tk.call('set_theme', 'dark')
         
         # Client state
         self.logged_in = False
@@ -47,8 +58,8 @@ class P2PClientGUI:
         # Create connection to main server
         self.connect_to_server()
         
-        # Create UI
-        self.create_login_ui()
+        # Create initial UI
+        self.show_login_screen()
         
     def connect_to_server(self):
         try:
@@ -64,29 +75,92 @@ class P2PClientGUI:
         
         threading.Thread(target=server_thread, daemon=True).start()
     
-    def create_login_ui(self):
-        """Creates the login/registration UI."""
+    def show_login_screen(self, show_register=False):
+        """Shows login or register screen based on parameter"""
         self.clear_window()
         
-        frame = ttk.Frame(self.root, padding="20")
-        frame.pack(expand=True, fill=tk.BOTH)
+        main_frame = ttk.Frame(self.root, padding=(30, 20))
+        main_frame.pack(expand=True, fill=tk.BOTH)
         
-        ttk.Label(frame, text="Peer ID:").grid(row=0, column=0, sticky=tk.W, pady=5)
-        self.peer_id_entry = ttk.Entry(frame)
+        # Header
+        header_frame = ttk.Frame(main_frame)
+        header_frame.pack(pady=(0, 20))
+        ttk.Label(header_frame, text="P2P File Sharing", font=('Helvetica', 16, 'bold')).pack()
+        
+        # Form frame
+        form_frame = ttk.Frame(main_frame)
+        form_frame.pack(fill=tk.X, pady=10)
+        
+        if show_register:
+            self.create_register_form(form_frame)
+        else:
+            self.create_login_form(form_frame)
+        
+        # Switch between login/register
+        switch_frame = ttk.Frame(main_frame)
+        switch_frame.pack(fill=tk.X, pady=10)
+        
+        if show_register:
+            ttk.Button(switch_frame, text="Back to Login", 
+                        command=lambda: self.show_login_screen(False)).pack()
+        else:
+            ttk.Button(switch_frame, text="Register New Account", 
+                        command=lambda: self.show_login_screen(True)).pack()
+    
+    def create_login_form(self, parent):
+        """Creates the login form elements"""
+        ttk.Label(parent, text="Peer ID:").grid(row=0, column=0, sticky=tk.W, pady=5)
+        self.peer_id_entry = ttk.Entry(parent)
         self.peer_id_entry.grid(row=0, column=1, sticky=tk.EW, pady=5)
         
-        ttk.Label(frame, text="Password:").grid(row=1, column=0, sticky=tk.W, pady=5)
-        self.password_entry = ttk.Entry(frame, show="*")
+        ttk.Label(parent, text="Password:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        self.password_entry = ttk.Entry(parent, show="*")
         self.password_entry.grid(row=1, column=1, sticky=tk.EW, pady=5)
         
-        button_frame = ttk.Frame(frame)
-        button_frame.grid(row=2, column=0, columnspan=2, pady=10)
+        # Bind Enter key to login
+        self.password_entry.bind('<Return>', lambda e: self.handle_login())
         
-        ttk.Button(button_frame, text="Login", command=self.handle_login).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Register", command=self.handle_register).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Exit", command=self.root.quit).pack(side=tk.LEFT, padx=5)
+        button_frame = ttk.Frame(parent)
+        button_frame.grid(row=2, column=0, columnspan=2, pady=15)
         
-        frame.columnconfigure(1, weight=1)
+        login_btn = ttk.Button(button_frame, text="Login", command=self.handle_login, 
+                    style='Accent.TButton')
+        login_btn.pack(side=tk.LEFT, padx=5)
+        
+        exit_btn = ttk.Button(button_frame, text="Exit", command=self.root.quit)
+        exit_btn.pack(side=tk.LEFT, padx=5)
+        
+        parent.columnconfigure(1, weight=1)
+    
+    def create_register_form(self, parent):
+        """Creates the registration form elements"""
+        ttk.Label(parent, text="Choose Peer ID:").grid(row=0, column=0, sticky=tk.W, pady=5)
+        self.reg_peer_entry = ttk.Entry(parent)
+        self.reg_peer_entry.grid(row=0, column=1, sticky=tk.EW, pady=5)
+        
+        ttk.Label(parent, text="Password:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        self.reg_pass_entry = ttk.Entry(parent, show="*")
+        self.reg_pass_entry.grid(row=1, column=1, sticky=tk.EW, pady=5)
+        
+        ttk.Label(parent, text="Confirm Password:").grid(row=2, column=0, sticky=tk.W, pady=5)
+        self.reg_confirm_entry = ttk.Entry(parent, show="*")
+        self.reg_confirm_entry.grid(row=2, column=1, sticky=tk.EW, pady=5)
+        
+        # Bind Enter key to register
+        self.reg_confirm_entry.bind('<Return>', lambda e: self.handle_register())
+        
+        button_frame = ttk.Frame(parent)
+        button_frame.grid(row=3, column=0, columnspan=2, pady=15)
+        
+        reg_btn = ttk.Button(button_frame, text="Register", command=self.handle_register,
+                            style='Accent.TButton')
+        reg_btn.pack(side=tk.LEFT, padx=5)
+        
+        cancel_btn = ttk.Button(button_frame, text="Cancel", 
+                        command=lambda: self.show_login_screen(False))
+        cancel_btn.pack(side=tk.LEFT, padx=5)
+        
+        parent.columnconfigure(1, weight=1)
     
     def create_main_ui(self):
         """Creates the main application UI after login."""
@@ -96,31 +170,73 @@ class P2PClientGUI:
         main_frame = ttk.Frame(self.root)
         main_frame.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
         
-        # Output console
-        self.console = scrolledtext.ScrolledText(main_frame, state='disabled', height=15)
-        self.console.pack(expand=True, fill=tk.BOTH, pady=(0, 10))
+        # Header with user info
+        header_frame = ttk.Frame(main_frame)
+        header_frame.pack(fill=tk.X, pady=(0, 10))
+        ttk.Label(header_frame, text=f"Logged in as: {self.peer_id}", font=('Helvetica', 10)).pack(side=tk.LEFT)
         
-        # Button frame
+        # Logout button with icon and tooltip
+        logout_btn = ttk.Button(header_frame, text="🚪", width=3, command=self.handle_logout)
+        logout_btn.pack(side=tk.RIGHT)
+        self.create_tooltip(logout_btn, "Logout")
+        
+        # Output console with modern styling
+        console_frame = ttk.LabelFrame(main_frame, text="Activity Log", padding=10)
+        console_frame.pack(expand=True, fill=tk.BOTH, pady=(0, 10))
+        
+        self.console = scrolledtext.ScrolledText(
+            console_frame, 
+            state='disabled', 
+            height=15,
+            font=('Consolas', 10),
+            padx=10,
+            pady=10,
+            wrap=tk.WORD
+        )
+        self.console.pack(expand=True, fill=tk.BOTH)
+        
+        # Button grid with icons
         button_frame = ttk.Frame(main_frame)
-        button_frame.pack(fill=tk.X, pady=5)
+        button_frame.pack(fill=tk.X, pady=20)
         
         buttons = [
-            ("Online Users", self.view_online_users),
-            ("Shared Resources", self.view_shared_resources),
-            ("Register Resource", self.register_resource),
-            ("Deregister Resource", self.deregister_resource_prompt),
-            ("Request Resource", self.request_resource_prompt),
-            ("Logout", self.handle_logout)
+            ("👥", "Online Users", self.view_online_users),
+            ("📂", "Shared Resources", self.view_shared_resources),
+            ("↑", "Register Resource", self.register_resource),
+            ("↓", "Deregister Resource", self.deregister_resource_prompt),
+            ("🔍", "Request Resource", self.request_resource_prompt)
         ]
         
-        for i, (text, command) in enumerate(buttons):
-            ttk.Button(button_frame, text=text, command=command).grid(
-                row=i//3, column=i%3, padx=5, pady=5, sticky=tk.NSEW
+        for i, (icon, text, command) in enumerate(buttons):
+            btn = ttk.Button(
+                button_frame, 
+                text=f"{icon} {text}", 
+                command=command,
+                style='TButton'
             )
+            btn.grid(row=i//3, column=i%3, padx=5, pady=5, sticky=tk.NSEW)
+            self.create_tooltip(btn, text)
             button_frame.columnconfigure(i%3, weight=1)
         
         button_frame.rowconfigure(0, weight=1)
         button_frame.rowconfigure(1, weight=1)
+    
+    def create_tooltip(self, widget, text):
+        """Creates a tooltip for a widget"""
+        tooltip = ttk.Label(self.root, text=text, background="#ffffe0", relief="solid", borderwidth=1)
+        tooltip.pack_forget()
+        
+        def enter(event):
+            x, y, _, _ = widget.bbox("insert")
+            x += widget.winfo_rootx() + 25
+            y += widget.winfo_rooty() + 25
+            tooltip.place(x=x, y=y)
+        
+        def leave(event):
+            tooltip.place_forget()
+        
+        widget.bind("<Enter>", enter)
+        widget.bind("<Leave>", leave)
     
     def clear_window(self):
         """Clears all widgets from the root window."""
@@ -154,11 +270,16 @@ class P2PClientGUI:
     
     def handle_register(self):
         """Handles the registration process."""
-        peer_id = self.peer_id_entry.get().strip()
-        password = self.password_entry.get().strip()
+        peer_id = self.reg_peer_entry.get().strip()
+        password = self.reg_pass_entry.get().strip()
+        confirm = self.reg_confirm_entry.get().strip()
         
         if not peer_id or not password:
             messagebox.showerror("Error", "Peer ID and password are required")
+            return
+            
+        if password != confirm:
+            messagebox.showerror("Error", "Passwords do not match")
             return
         
         if check_user_exists(peer_id):
@@ -171,6 +292,7 @@ class P2PClientGUI:
         
         if response[1] == "+":
             messagebox.showinfo("Success", "Registration successful! Please log in.")
+            self.show_login_screen(False)
         else:
             messagebox.showerror("Error", "Registration failed")
     
@@ -179,7 +301,7 @@ class P2PClientGUI:
         if logout(self.client_socket, self.peer_id):
             self.logged_in = False
             self.peer_id = ""
-            self.create_login_ui()
+            self.show_login_screen(False)
     
     def view_online_users(self):
         """Displays online users."""
@@ -207,8 +329,8 @@ class P2PClientGUI:
         last_modified_timestamp = str(os.path.getmtime(file_path))
         
         message = (f"r{SEPARATOR}{self.peer_id}{SEPARATOR}{resource_file_name}"
-                   f"{SEPARATOR}{resource_file_extension}{SEPARATOR}{resource_file_size}"
-                   f"{SEPARATOR}{last_modified_timestamp}")
+                f"{SEPARATOR}{resource_file_extension}{SEPARATOR}{resource_file_size}"
+                f"{SEPARATOR}{last_modified_timestamp}")
         
         response = send_tcp_message(self.client_socket, message)
         self.log_message(f"Resource registration response: {response}")
@@ -221,7 +343,7 @@ class P2PClientGUI:
             
         dialog = tk.Toplevel(self.root)
         dialog.title("Deregister Resource")
-        dialog.geometry("400x200")
+        dialog.geometry("400x300")
         
         ttk.Label(dialog, text="Resource Peer ID:").pack(pady=5)
         peer_id_entry = ttk.Entry(dialog)
@@ -246,7 +368,12 @@ class P2PClientGUI:
                 return
                 
             response = deregister_resource(self.client_socket, peer_id, file_name, file_ext)
-            self.log_message(f"Deregistration response: {response}")
+            if (response[1] == "+"): # Success
+                self.log_message(f"Deregistered: {peer_id}'s {file_name}.{file_ext}")
+            elif (response[1] == "-"): # Unsuccessful
+                self.log_message(f"Could not deregister {peer_id}'s {file_name}.{file_ext}")
+            else: # Error
+                self.log_message(f"ERROR | Deregistration response: {response}")
             dialog.destroy()
         
         ttk.Button(dialog, text="Deregister", command=do_deregister).pack(pady=10)
@@ -299,7 +426,7 @@ class P2PClientGUI:
                     
                     self.log_message(f"Connecting to peer's server @ {peer_server_ip}:{peer_server_port}...")
                     status = connect_to_peer(peer_server_ip, peer_server_port, self.peer_id, 
-                                           owner, file_name, file_ext)
+                                owner, file_name, file_ext)
                     
                     if status:
                         self.log_message("[+] Resource received successfully!")
@@ -309,7 +436,6 @@ class P2PClientGUI:
             dialog.destroy()
         
         ttk.Button(dialog, text="Request", command=do_request).pack(pady=10)
-
 
 def create_persistent_connection(ip, port):
     '''
@@ -680,7 +806,7 @@ def deregister_resource(client_socket, resource_peer_id, resource_file_name, res
     
     response = send_tcp_message(client_socket, message)
     print(f"[+] Resource Deregistered: {response}")
-    return message
+    return response
 
 
 def request_file_from_peer(client_socket, self_peer_id, resource_owner, resource_file_name, resource_file_extension):

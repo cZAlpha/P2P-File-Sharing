@@ -123,6 +123,21 @@ def request_file_transfer(requesting_peer, resource_owner, resource_file_name, r
                     return f"a{SEPARATOR}{resource_owner}{SEPARATOR}{owner_server_ip}{SEPARATOR}{owner_server_port}"
     return "[-] FILE NOT AVAILABLE OR PEER OFFLINE."
 
+def send_updated_resource(requesting_peer,resource_owner, resource_file_name, resource_file_extension):
+    #check if resource has been updated, and send if is  
+ 
+    if(resource_file_name.hasUpdate() == true):
+        print(f"There is a modified version of {resource_file_name}. It is now being sent.")
+        #request updated version
+
+    else:
+        print(f"You already own the most up to date version of {resource_file_name}.")  
+
+    owner_server_ip, owner_server_port = extract_ip_and_port(owner_server_info)
+    return f"u{SEPARATOR}{resource_owner}{SEPARATOR}{owner_server_ip}{SEPARATOR}{owner_server_port}{SEPARATOR}{resource_file_name}{SEPARATOR}{resource_file_extension}"
+
+    
+
 
 # Handle client(s)
 def handle_client(client_socket, client_address):

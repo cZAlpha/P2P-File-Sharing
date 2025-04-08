@@ -158,6 +158,8 @@ def handle_client(client_socket, client_address):
             peer_id = parts[1]
             peer_password = parts[2] if len(parts) > 2 else None
             
+            logged_in = False
+
             if action == "login":
                 # Grab user's server's ip and port
                 peer_server_info = parts[3]
@@ -168,9 +170,10 @@ def handle_client(client_socket, client_address):
                         print(online_users)
                     print(f"[+] Online Users List: {online_users}")
                     client_socket.send("[+] LOGIN SUCCESSFUL!".encode())
+                    logged_in = True
                     
                     # Keep client in loop for further requests
-                    while True:
+                    while logged_in:
                         try:
                             client_message = client_socket.recv(BUFFER_SIZE).decode()
                             
@@ -192,9 +195,11 @@ def handle_client(client_socket, client_address):
                                         if user[0] == peer_id:
                                             online_users.remove(user)
                                             print(f"[+] {peer_id} logged out.")
+                                            print(f"[+] Online users list is now: {online_users}")
                                             client_socket.send("[+] LOGOUT SUCCESSFUL!".encode())
-                                            break
-                                
+                                            logged_in = False
+                                            
+
                                 elif action == "get_online_users":
                                     print(f"[+] Online users request from {peer_id}")
                                     list_of_online_peer_ids = []
@@ -265,6 +270,7 @@ def handle_client(client_socket, client_address):
                         
                         except Exception as e:
                             print(f"[-] Error with {peer_id}: {e}")
+                            logged_in = False
                             break
                 
                 else:

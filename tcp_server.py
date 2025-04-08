@@ -1,8 +1,8 @@
-from threading import Thread
 import datetime
 import hashlib
+import os  # Added for checksum calculation
 import socket
-
+from threading import Thread
 
 # Global variables
 Server_IP = '127.0.0.1'  # Localhost; replace with IP address if needed
@@ -20,9 +20,24 @@ USER_FILE = "users.txt"
 online_users = [] # Just contains the peer_id's of all online users
 
 # List of shared resources
-# Contains resources in the format: (resource_peer_id, resource_file_name, resource_file_extension, resource_file_size)
-# No repeat resources are allowed!
+# Contains resources in the format: (resource_peer_id, resource_file_name, resource_file_extension, resource_file_size, last_modified, version, checksum)  # Modified line
 shared_resources = [] 
+
+# Added function for checksum calculation
+def calculate_checksum(file_path):
+    """Calculate MD5 checksum of a file"""
+    hash_md5 = hashlib.md5()
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
+
+# Added function for version tracking
+def get_latest_version(peer_id, file_name, extension):
+    """Get the latest version number for a file"""
+    versions = [res[5] for res in shared_resources 
+               if res[:3] == (peer_id, file_name, extension)]
+    return max(versions) if versions else 0
 
 
 # Load existing users from the file
@@ -45,35 +60,27 @@ def save_user(username, password):
 
 
 # Register a new resource
-def register_resource(resource_peer_id, resource_file_name, resource_file_extension, resource_file_size, resource_date_modified):
+def register_resource(resource_peer_id, resource_file_name, resource_file_extension, resource_file_size, resource_date_modified, file_checksum=None):  # Modified signature
     """
     Purpose: This function appends a resource to the shared_resources list.
-    
-    Args:
-        resource_peer_id: The peer ID of the Peer who has the resource.
-        resource_file_name: The name of the file to be registered.
-        resource_file_extension: The file extension.
-        resource_file_size: The size of the file in bytes.
-        resource_date_modified: The last modified date of the file.
-    
-    Returns:
-        True if the resource was added successfully, otherwise False.
+    Now includes version tracking and checksum validation.
     """
-    
-    # Ensure all required arguments are provided
-    if not resource_peer_id or not resource_file_name or not resource_file_extension or not resource_date_modified:
-        return False  
-    
-    # Define the resource without timestamp (used to check for older versions)
+    # Generate resource identifier
     resource_id = (resource_peer_id, resource_file_name, resource_file_extension)
     
-    # Find and remove any existing resource with the same peer, file name, and extension
-    for res in shared_resources[:]:  # Iterate over a copy to avoid modifying during loop
-        if res[:3] == resource_id:  # Match peer, name, and extension (ignore size/timestamp)
-            shared_resources.remove(res)  # Remove outdated version
+    # Find existing versions
+    existing_versions = [res for res in shared_resources if res[:3] == resource_id]
     
-    # Add the new resource
-    new_resource = (resource_peer_id, resource_file_name, resource_file_extension, resource_file_size, resource_date_modified)
+    # Determine new version number
+    new_version = max([res[5] for res in existing_versions], default=0) + 1 if existing_versions else 1
+    
+    # Remove old versions from same peer
+    for res in existing_versions[:]:
+        if res[0] == resource_peer_id:
+            shared_resources.remove(res)
+    
+    # Add new resource with version info
+    new_resource = (*resource_id, resource_file_size, resource_date_modified, new_version, file_checksum)
     shared_resources.append(new_resource)
     
     return True
@@ -186,6 +193,7 @@ def handle_client(client_socket, client_address):
                                 resource_file_extension = parts[3] if len(parts) > 3 else None
                                 resource_file_size = parts[4] if len(parts) > 4 else None
                                 resource_date_modified = parts[5] if len(parts) > 5 else None
+                                file_checksum = parts[6] if len(parts) > 6 else None  # Added for checksum
                                 
                                 if action == "logout":
                                     for user in online_users[:]:  # Iterate over a copy to avoid modifying while iterating
@@ -207,9 +215,9 @@ def handle_client(client_socket, client_address):
                                     # Convert timestamp to human-readable format
                                     formatted_resources = []
                                     for resource in shared_resources:
-                                        peer_id, file_name, file_extension, file_size, timestamp = resource
+                                        peer_id, file_name, file_extension, file_size, timestamp, version, checksum = resource  # Modified unpacking
                                         readable_timestamp = datetime.datetime.fromtimestamp(float(timestamp)).strftime('%Y-%m-%d %H:%M:%S')
-                                        formatted_resources.append((peer_id, file_name, file_extension, file_size, readable_timestamp))
+                                        formatted_resources.append((peer_id, file_name, file_extension, file_size, readable_timestamp, version))  # Added version
                                     
                                     client_socket.send(str(formatted_resources).encode())
                                 
@@ -219,7 +227,7 @@ def handle_client(client_socket, client_address):
                                     for user in online_users: # Check if the peer is online
                                         if user[0] == peer_id:
                                             peer_is_online = True
-                                    if peer_is_online and register_resource(resource_peer_id, resource_file_name, resource_file_extension, resource_file_size, resource_date_modified):
+                                    if peer_is_online and register_resource(resource_peer_id, resource_file_name, resource_file_extension, resource_file_size, resource_date_modified, file_checksum):  # Modified call
                                         print(f"[+] Resource {resource_file_name}.{resource_file_extension} added.")
                                         client_socket.send(f"[+] Resource {resource_file_name}.{resource_file_extension} was added.".encode())
                                     else:
@@ -258,6 +266,19 @@ def handle_client(client_socket, client_address):
                                     
                                     response = request_file_transfer(requesting_peer, resource_owner, resource_file_name, resource_file_extension)
                                     client_socket.send(response.encode())
+                                
+                                # Added version check handler
+                                elif action == "v":
+                                    peer_id = parts[1]
+                                    file_name = parts[2]
+                                    extension = parts[3]
+                                    current_version = int(parts[4])
+                                    
+                                    latest = get_latest_version(peer_id, file_name, extension)
+                                    if current_version < latest:
+                                        client_socket.send(f"outdated{SEPARATOR}{latest}".encode())
+                                    else:
+                                        client_socket.send("current".encode())
                                 
                                 else:
                                     print(f"[-] Unknown command from {peer_id}: {action}")

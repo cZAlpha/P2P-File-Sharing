@@ -1,14 +1,13 @@
+import datetime
 import hashlib  # For hashing passwords when logging in
-from socket import *
-import tkinter as tk
-from tkinter import filedialog
 import os
 import random
-import time
-import threading
 import sys
-import datetime
-
+import threading
+import time
+import tkinter as tk
+from socket import *
+from tkinter import filedialog
 
 # NOTE:
 # Ceasar's user's password is: sandwich1
@@ -27,6 +26,32 @@ SERVER_PORT = 12000
 
 # Communication conventions
 SEPARATOR = "<SEP>"
+
+
+# Added function for checksum calculation
+def calculate_checksum(file_path):
+    """Calculate MD5 checksum of a file"""
+    hash_md5 = hashlib.md5()
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
+
+# Added function for version checking
+def check_file_version(client_socket, peer_id, file_name, extension):
+    """Check if local file version is current"""
+    local_file = os.path.join("Downloads", f"{file_name}.{extension}")
+    if not os.path.exists(local_file):
+        return (False, 0)  # File doesn't exist locally
+    
+    # In real implementation, would store version with files
+    # For now we'll assume version 1 if file exists
+    message = f"v{SEPARATOR}{peer_id}{SEPARATOR}{file_name}{SEPARATOR}{extension}{SEPARATOR}1"
+    response = send_tcp_message(client_socket, message)
+    
+    if response.startswith("outdated"):
+        return (False, int(response.split(SEPARATOR)[1]))
+    return (True, 1)
 
 
 def create_persistent_connection(ip, port):
@@ -353,6 +378,7 @@ def get_shared_resources(client_socket):
 def register_resource(client_socket, resource_peer_id):
     """
     Opens a file selection dialog and registers the selected file.
+    Now includes checksum calculation and version tracking.
     """
     
     print(f"DEBUG: Registering resource for peer_id: '{resource_peer_id}'")
@@ -371,10 +397,12 @@ def register_resource(client_socket, resource_peer_id):
     resource_file_name = os.path.splitext(os.path.basename(file_path))[0]
     resource_file_extension = os.path.splitext(file_path)[1][1:]  # Remove leading '.'
     resource_file_size = str(os.path.getsize(file_path))
-    last_modified_timestamp = str(os.path.getmtime(file_path)) # Get last modified timestamp    
+    last_modified_timestamp = str(os.path.getmtime(file_path))
+    file_checksum = calculate_checksum(file_path)  # Added checksum calculation
     
-    SEPARATOR = "<SEP>"
-    message = ("r" + SEPARATOR + resource_peer_id + SEPARATOR + resource_file_name + SEPARATOR + resource_file_extension + SEPARATOR + resource_file_size + SEPARATOR + last_modified_timestamp)
+    message = ("r" + SEPARATOR + resource_peer_id + SEPARATOR + resource_file_name + 
+            SEPARATOR + resource_file_extension + SEPARATOR + resource_file_size + 
+            SEPARATOR + last_modified_timestamp + SEPARATOR + file_checksum)  # Added checksum
     
     response = send_tcp_message(client_socket, message)
     print(f"[+] Resource Registered: {response}")
@@ -404,18 +432,23 @@ def deregister_resource(client_socket, resource_peer_id, resource_file_name, res
 def request_file_from_peer(client_socket, self_peer_id, resource_owner, resource_file_name, resource_file_extension):
     """
     Purpose: Requests a file from another peer via the server.
-    Args:
-        server_socket: The connected server socket.
-        resource_owner: The peer ID of the client who owns the file.
-        resource_file_name: The requested file's name.
-        resource_file_extension: The requested file's extension.
-    Returns:
-        The response from the server 
+    Now includes version checking before download.
     """
+    # First check if we already have this file and its version
+    current_version = 0
+    local_file = os.path.join("Downloads", f"{resource_file_name}.{resource_file_extension}")
+    if os.path.exists(local_file):
+        # Check version with server
+        is_current, server_version = check_file_version(client_socket, resource_owner, resource_file_name, resource_file_extension)
+        if is_current:
+            print("[+] You already have the latest version of this file")
+            if input("Download anyway? (y/n): ").lower() != 'y':
+                return "[+] Download canceled"
+        current_version = server_version
+    
     message = f"p{SEPARATOR}{self_peer_id}{SEPARATOR}{resource_owner}{SEPARATOR}{resource_file_name}{SEPARATOR}{resource_file_extension}"
     response = send_tcp_message(client_socket, message)
     return response
-
 
 
 def main():

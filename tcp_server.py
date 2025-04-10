@@ -35,8 +35,7 @@ def calculate_checksum(file_path):
 # Added function for version tracking
 def get_latest_version(peer_id, file_name, extension):
     """Get the latest version number for a file"""
-    versions = [res[5] for res in shared_resources 
-               if res[:3] == (peer_id, file_name, extension)]
+    versions = [res[5] for res in shared_resources if res[:3] == (peer_id, file_name, extension)]
     return max(versions) if versions else 0
 
 
@@ -166,7 +165,7 @@ def handle_client(client_socket, client_address):
             peer_password = parts[2] if len(parts) > 2 else None
             
             logged_in = False
-
+            
             if action == "login":
                 # Grab user's server's ip and port
                 peer_server_info = parts[3]
@@ -205,9 +204,8 @@ def handle_client(client_socket, client_address):
                                             print(f"[+] {peer_id} logged out.")
                                             print(f"[+] Online users list is now: {online_users}")
                                             client_socket.send("[+] LOGOUT SUCCESSFUL!".encode())
-                                            logged_in = False
-                                            
-
+                                            logged_in = False        
+                                
                                 elif action == "get_online_users":
                                     print(f"[+] Online users request from {peer_id}")
                                     list_of_online_peer_ids = []
@@ -257,18 +255,17 @@ def handle_client(client_socket, client_address):
                                         else:
                                             client_socket.send("[-] YOU ARE NOT A USER IN THE NETWORK.".encode())
                                 
-                                elif action == "p":
+                                elif action == "p": # Resource Request
+                                    # Format: p, self_peer_id, resource_owner_peer_id, file_name, file_extension (commas are <SEP>)
                                     print(f"Parts of resource request message: {parts}")
-                                    requesting_peer = peer_id
-                                    requesting_peer_from_parts = parts[1]
-                                    if requesting_peer != requesting_peer_from_parts:
-                                        client_socket.send("[!] Your peer_id does not match that of the message you sent...".encode())
-                                        break # Skip the rest of the stuff in this elif conditional
-                                    
+                                    requesting_peer = parts[1]
                                     resource_owner = parts[2]
                                     resource_file_name = parts[3]
                                     resource_file_extension = parts[4]
-                                    
+                                    # This response will be:
+                                    #   - Success: "a{SEPARATOR}{resource_owner}{SEPARATOR}{owner_server_ip}{SEPARATOR}{owner_server_port}"
+                                    #   - Failure (Not available): "[-] FILE NOT AVAILABLE OR PEER OFFLINE."
+                                    #   - Failure (From yourself): "[!] You are requesting a file you own, you cannot download a file from yourself!"
                                     response = request_file_transfer(requesting_peer, resource_owner, resource_file_name, resource_file_extension)
                                     client_socket.send(response.encode())
                                 

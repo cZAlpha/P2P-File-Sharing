@@ -229,7 +229,7 @@ class P2PClientGUI:
         def enter(event):
             x, y, _, _ = widget.bbox("insert")
             x += widget.winfo_rootx() + 25
-            y += widget.winfo_rooty() + 25
+            y -= widget.winfo_rooty() + 25
             tooltip.place(x=x, y=y)
         
         def leave(event):
@@ -408,7 +408,8 @@ class P2PClientGUI:
             if not owner or not file_name or not file_ext:
                 messagebox.showerror("Error", "All fields are required")
                 return
-                
+            
+            # self_peer_id, resource_owner_peer_id, file_name, file_extension
             response = request_file_from_peer(self.client_socket, self.peer_id, owner, file_name, file_ext)
             self.log_message(f"Resource request response: {response}")
             
@@ -821,6 +822,7 @@ def request_file_from_peer(client_socket, self_peer_id, resource_owner, resource
     Returns:
         The response from the server 
     """
+    # Format: p, self_peer_id, resource_owner_peer_id, file_name, file_extension (commas are <SEP>)
     message = f"p{SEPARATOR}{self_peer_id}{SEPARATOR}{resource_owner}{SEPARATOR}{resource_file_name}{SEPARATOR}{resource_file_extension}"
     response = send_tcp_message(client_socket, message)
     return response

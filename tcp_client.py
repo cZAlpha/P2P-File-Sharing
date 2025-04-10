@@ -442,35 +442,6 @@ class P2PClientGUI:
                         for resource in self.synced_resources:
                             self.log_message(f"    [{resource_number}] {resource}")
                             resource_number += 1
-                        
-                        # # START - TESTING (THIS WORKS BUT NEEDS TO BE ABSTRACTED!!!)
-                        # # Sleep for 20
-                        # self.log_message("[...] Waiting 20 seconds before requesting resource again for update")
-                        # time.sleep(20)
-                        # self.log_message("[+] Requesting update for resource")
-                        # # self_peer_id, resource_owner_peer_id, file_name, file_extension
-                        # response = request_file_from_peer(self.client_socket, self.peer_id, owner, file_name, file_ext)
-                        # self.log_message(f"REPEAT: Resource request response: {response}")
-                        # if SEPARATOR in response:
-                        #     response_parts = response.split(SEPARATOR)
-                        #     action = response_parts[0]
-                        #     if action == "a" and len(response_parts) == 4:
-                        #         returned_peer_id = response_parts[1]
-                        #         if owner != returned_peer_id:
-                        #             self.log_message("[!] REPEAT:  ERROR: Peer ID mismatch")
-                        #             return
-                                    
-                        #         peer_server_ip = response_parts[2]
-                        #         peer_server_port = response_parts[3]
-                                
-                        #         self.log_message(f"REPEAT: Connecting to peer's server @ {peer_server_ip}:{peer_server_port}...")
-                        #         status = connect_to_peer(peer_server_ip, peer_server_port, self.peer_id, 
-                        #                     owner, file_name, file_ext)
-                        #         if status:
-                        #             self.log_message("[+] REPEAT: Resource received successfully!")
-                        #         else:
-                        #             self.log_message("[-] REPEAT: Failed to receive resource")
-                        # # STOP  - TESTING
                     else:
                         self.log_message("[-] Failed to receive resource")
             

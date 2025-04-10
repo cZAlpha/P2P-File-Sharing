@@ -270,19 +270,6 @@ def handle_client(client_socket, client_address):
                                     response = request_file_transfer(requesting_peer, resource_owner, resource_file_name, resource_file_extension)
                                     client_socket.send(response.encode())
                                 
-                                # Added version check handler (unused)
-                                # elif action == "v":
-                                #     peer_id = parts[1]
-                                #     file_name = parts[2]
-                                #     extension = parts[3]
-                                #     current_version = int(parts[4])
-                                #
-                                #     latest = get_latest_version(peer_id, file_name, extension)
-                                #     if current_version < latest:
-                                #         client_socket.send(f"outdated{SEPARATOR}{latest}".encode())
-                                #     else:
-                                #         client_socket.send("current".encode())
-                                
                                 else:
                                     print(f"[-] Unknown command from {peer_id}: {action}")
                                     client_socket.send("[-] Unknown command.".encode())

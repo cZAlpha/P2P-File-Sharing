@@ -24,19 +24,19 @@ online_users = [] # Just contains the peer_id's of all online users
 shared_resources = [] 
 
 # Added function for checksum calculation
-def calculate_checksum(file_path):
-    """Calculate MD5 checksum of a file"""
-    hash_md5 = hashlib.md5()
-    with open(file_path, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_md5.update(chunk)
-    return hash_md5.hexdigest()
+# def calculate_checksum(file_path):
+#     """Calculate MD5 checksum of a file"""
+#     hash_md5 = hashlib.md5()
+#     with open(file_path, "rb") as f:
+#         for chunk in iter(lambda: f.read(4096), b""):
+#             hash_md5.update(chunk)
+#     return hash_md5.hexdigest()
 
 # Added function for version tracking
-def get_latest_version(peer_id, file_name, extension):
-    """Get the latest version number for a file"""
-    versions = [res[5] for res in shared_resources if res[:3] == (peer_id, file_name, extension)]
-    return max(versions) if versions else 0
+# def get_latest_version(peer_id, file_name, extension):
+#     """Get the latest version number for a file"""
+#     versions = [res[5] for res in shared_resources if res[:3] == (peer_id, file_name, extension)]
+#     return max(versions) if versions else 0
 
 
 # Load existing users from the file
@@ -137,8 +137,9 @@ def request_file_transfer(requesting_peer, resource_owner, resource_file_name, r
             for resource in shared_resources: # Iterate over the shared_resources and check if the resource_to_check is in it
                 if resource[:3] == resource_to_check:  # If the resource is in the shared_resources list
                     owner_server_ip, owner_server_port = extract_ip_and_port(owner_server_info) # Extract the ip and port information
-                    # Send the requesting peer the owner's contact information
-                    return f"a{SEPARATOR}{resource_owner}{SEPARATOR}{owner_server_ip}{SEPARATOR}{owner_server_port}"
+                    resource_version_num = resource[5] # Grab the version number to track if the file should be updated during syncing
+                    # Send the requesting peer the owner's contact information and version number of the file
+                    return f"a{SEPARATOR}{resource_owner}{SEPARATOR}{owner_server_ip}{SEPARATOR}{owner_server_port}{SEPARATOR}{resource_version_num}"
     return "[-] FILE NOT AVAILABLE OR PEER OFFLINE."
 
 
@@ -263,24 +264,24 @@ def handle_client(client_socket, client_address):
                                     resource_file_name = parts[3]
                                     resource_file_extension = parts[4]
                                     # This response will be:
-                                    #   - Success: "a{SEPARATOR}{resource_owner}{SEPARATOR}{owner_server_ip}{SEPARATOR}{owner_server_port}"
+                                    #   - Success: "a{SEPARATOR}{resource_owner}{SEPARATOR}{owner_server_ip}{SEPARATOR}{owner_server_port}{SEPARATOR}{resource_version_num}"
                                     #   - Failure (Not available): "[-] FILE NOT AVAILABLE OR PEER OFFLINE."
                                     #   - Failure (From yourself): "[!] You are requesting a file you own, you cannot download a file from yourself!"
                                     response = request_file_transfer(requesting_peer, resource_owner, resource_file_name, resource_file_extension)
                                     client_socket.send(response.encode())
                                 
-                                # Added version check handler
-                                elif action == "v":
-                                    peer_id = parts[1]
-                                    file_name = parts[2]
-                                    extension = parts[3]
-                                    current_version = int(parts[4])
-                                    
-                                    latest = get_latest_version(peer_id, file_name, extension)
-                                    if current_version < latest:
-                                        client_socket.send(f"outdated{SEPARATOR}{latest}".encode())
-                                    else:
-                                        client_socket.send("current".encode())
+                                # Added version check handler (unused)
+                                # elif action == "v":
+                                #     peer_id = parts[1]
+                                #     file_name = parts[2]
+                                #     extension = parts[3]
+                                #     current_version = int(parts[4])
+                                #
+                                #     latest = get_latest_version(peer_id, file_name, extension)
+                                #     if current_version < latest:
+                                #         client_socket.send(f"outdated{SEPARATOR}{latest}".encode())
+                                #     else:
+                                #         client_socket.send("current".encode())
                                 
                                 else:
                                     print(f"[-] Unknown command from {peer_id}: {action}")

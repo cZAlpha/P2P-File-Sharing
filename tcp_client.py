@@ -11,6 +11,7 @@ import datetime
 
 
 # NOTE:
+# Noah's user's password is: D10686712
 # Ceasar's user's password is: sandwich1
 
 # Global variables
@@ -27,13 +28,6 @@ SERVER_PORT = 12000
 
 # Communication conventions
 SEPARATOR = "<SEP>"
-
-
-import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext, filedialog
-import os
-import hashlib
-import threading
 
 
 class P2PClientGUI:
@@ -55,12 +49,16 @@ class P2PClientGUI:
         # Start the server in the background
         self.start_server()
         
+        # Start the sync thread in the background
+        self.synced_resources = []  # List of tuples (owner, name, ext, version)
+        self.start_sync()
+        
         # Create connection to main server
         self.connect_to_server()
         
         # Create initial UI
         self.show_login_screen()
-        
+    
     def connect_to_server(self):
         try:
             self.client_socket = create_persistent_connection(SERVER_IP_ADDRESS, SERVER_PORT)
@@ -75,6 +73,13 @@ class P2PClientGUI:
         
         threading.Thread(target=server_thread, daemon=True).start()
     
+    def start_sync(self):
+        """Starts the syncing background thread."""
+        def sync_thread():
+            self.start_sync_thread()
+        
+        threading.Thread(target=sync_thread, daemon=True).start()
+
     def show_login_screen(self, show_register=False):
         """Shows login or register screen based on parameter"""
         self.clear_window()
@@ -411,19 +416,19 @@ class P2PClientGUI:
             
             # self_peer_id, resource_owner_peer_id, file_name, file_extension
             response = request_file_from_peer(self.client_socket, self.peer_id, owner, file_name, file_ext)
-            self.log_message(f"Resource request response: {response}")
-            
             if SEPARATOR in response:
+                self.log_message(f"[+] Resource request response: {response}")
                 response_parts = response.split(SEPARATOR)
                 action = response_parts[0]
-                if action == "a" and len(response_parts) == 4:
+                if action == "a":
                     returned_peer_id = response_parts[1]
                     if owner != returned_peer_id:
                         self.log_message("[!] ERROR: Peer ID mismatch")
                         return
-                        
+                    
                     peer_server_ip = response_parts[2]
                     peer_server_port = response_parts[3]
+                    peer_resource_version_num = response_parts[4]
                     
                     self.log_message(f"Connecting to peer's server @ {peer_server_ip}:{peer_server_port}...")
                     status = connect_to_peer(peer_server_ip, peer_server_port, self.peer_id, 
@@ -431,41 +436,103 @@ class P2PClientGUI:
                     
                     if status:
                         self.log_message("[+] Resource received successfully!")
+                        self.synced_resources.append((owner, file_name, file_ext, peer_resource_version_num)) # add the downloaded resource's information to the synced resources list
+                        self.log_message("[+] Synced Resources List: ")
+                        resource_number = 0 # Counter var
+                        for resource in self.synced_resources:
+                            self.log_message(f"    [{resource_number}] {resource}")
+                            resource_number += 1
                         
-                        # START - TESTING (THIS WORKS BUT NEEDS TO BE ABSTRACTED!!!)
-                        # Sleep for 20
-                        self.log_message("[...] Waiting 20 seconds before requesting resource again for update")
-                        time.sleep(20)
-                        self.log_message("[+] Requesting update for resource")
-                        # self_peer_id, resource_owner_peer_id, file_name, file_extension
-                        response = request_file_from_peer(self.client_socket, self.peer_id, owner, file_name, file_ext)
-                        self.log_message(f"REPEAT: Resource request response: {response}")
-                        if SEPARATOR in response:
-                            response_parts = response.split(SEPARATOR)
-                            action = response_parts[0]
-                            if action == "a" and len(response_parts) == 4:
-                                returned_peer_id = response_parts[1]
-                                if owner != returned_peer_id:
-                                    self.log_message("[!] REPEAT:  ERROR: Peer ID mismatch")
-                                    return
+                        # # START - TESTING (THIS WORKS BUT NEEDS TO BE ABSTRACTED!!!)
+                        # # Sleep for 20
+                        # self.log_message("[...] Waiting 20 seconds before requesting resource again for update")
+                        # time.sleep(20)
+                        # self.log_message("[+] Requesting update for resource")
+                        # # self_peer_id, resource_owner_peer_id, file_name, file_extension
+                        # response = request_file_from_peer(self.client_socket, self.peer_id, owner, file_name, file_ext)
+                        # self.log_message(f"REPEAT: Resource request response: {response}")
+                        # if SEPARATOR in response:
+                        #     response_parts = response.split(SEPARATOR)
+                        #     action = response_parts[0]
+                        #     if action == "a" and len(response_parts) == 4:
+                        #         returned_peer_id = response_parts[1]
+                        #         if owner != returned_peer_id:
+                        #             self.log_message("[!] REPEAT:  ERROR: Peer ID mismatch")
+                        #             return
                                     
-                                peer_server_ip = response_parts[2]
-                                peer_server_port = response_parts[3]
+                        #         peer_server_ip = response_parts[2]
+                        #         peer_server_port = response_parts[3]
                                 
-                                self.log_message(f"REPEAT: Connecting to peer's server @ {peer_server_ip}:{peer_server_port}...")
-                                status = connect_to_peer(peer_server_ip, peer_server_port, self.peer_id, 
-                                            owner, file_name, file_ext)
-                                if status:
-                                    self.log_message("[+] REPEAT: Resource received successfully!")
-                                else:
-                                    self.log_message("[-] REPEAT: Failed to receive resource")
-                        # STOP  - TESTING
+                        #         self.log_message(f"REPEAT: Connecting to peer's server @ {peer_server_ip}:{peer_server_port}...")
+                        #         status = connect_to_peer(peer_server_ip, peer_server_port, self.peer_id, 
+                        #                     owner, file_name, file_ext)
+                        #         if status:
+                        #             self.log_message("[+] REPEAT: Resource received successfully!")
+                        #         else:
+                        #             self.log_message("[-] REPEAT: Failed to receive resource")
+                        # # STOP  - TESTING
                     else:
                         self.log_message("[-] Failed to receive resource")
             
             dialog.destroy()
         
         ttk.Button(dialog, text="Request", command=do_request).pack(pady=10)
+    
+    def start_sync_thread(self):
+        """
+        Starts a background thread that periodically checks for updated versions
+        of synced resources and automatically downloads them if available.
+        """
+        def sync_loop():
+            while True:
+                if self.logged_in and hasattr(self, 'synced_resources') and self.synced_resources:
+                    try:
+                        # Get current shared resources from server
+                        shared_resources_response = get_shared_resources(self.client_socket)
+                        
+                        # Parse the response into a list of resources
+                        shared_resources = eval(shared_resources_response)  # Caution: eval can be dangerous with untrusted input
+                        
+                        # Create a dictionary for quick lookup
+                        server_resources = {}
+                        for resource in shared_resources:
+                            owner, name, ext, size, timestamp, version = resource
+                            server_resources[(owner, name, ext)] = version
+                        
+                        # Check each synced resource for updates
+                        for i, (owner, name, ext, local_version) in enumerate(self.synced_resources):
+                            key = (owner, name, ext)
+                            if key in server_resources:
+                                server_version = server_resources[key]
+                                if int(server_version) > int(local_version):
+                                    self.log_message(f"[SYNC] Update available for {name}.{ext} (v{local_version} -> v{server_version})")
+                                    
+                                    # Request the updated resource
+                                    response = request_file_from_peer(self.client_socket, self.peer_id, owner, name, ext)
+                                    
+                                    if SEPARATOR in response:
+                                        response_parts = response.split(SEPARATOR)
+                                        if len(response_parts) >= 5 and response_parts[0] == "a":
+                                            peer_server_ip = response_parts[2]
+                                            peer_server_port = response_parts[3]
+                                            
+                                            # Download the updated file
+                                            if connect_to_peer(peer_server_ip, peer_server_port, self.peer_id, owner, name, ext):
+                                                # Update local version in synced_resources
+                                                self.synced_resources[i] = (owner, name, ext, server_version)
+                                                self.log_message(f"[SYNC] Successfully updated {name}.{ext} to v{server_version}")
+                                            else:
+                                                self.log_message(f"[SYNC] Failed to download update for {name}.{ext}")
+                    except Exception as e:
+                        self.log_message(f"[SYNC ERROR] {str(e)}")
+                
+                # Wait before next sync check (e.g., every 30 seconds)
+                time.sleep(30)
+        
+        # Start the sync thread
+        sync_thread = threading.Thread(target=sync_loop, daemon=True)
+        sync_thread.start()
+
 
 
 def create_persistent_connection(ip, port):

@@ -1,13 +1,13 @@
-import hashlib  # For hashing passwords when logging in
-from socket import *
-import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
-import os
+import tkinter as tk
+from socket import *
+import threading
+import datetime
+import hashlib  # For hashing passwords when logging in
 import random
 import time
-import threading
 import sys
-import datetime
+import os
 
 
 # NOTE:

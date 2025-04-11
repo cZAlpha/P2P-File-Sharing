@@ -2,7 +2,7 @@
 A peer to peer file sharing networking project for our Computer Networking class.
 
 <figure style="text-align:center;">
-    <img src="Assets/P2P_Networking_Project_Diagram.png" height="600"></div>
+   <img src="Assets/P2P_Networking_Project_Diagram.png" height="600"></div>
 	<figcaption style="font-weight:bold; color:#0055ee;">Figure 1: Network Diagram.</figcaption>
 </figure>
 

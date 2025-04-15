@@ -79,7 +79,7 @@ class P2PClientGUI:
             self.start_sync_thread()
         
         threading.Thread(target=sync_thread, daemon=True).start()
-
+    
     def show_login_screen(self, show_register=False):
         """Shows login or register screen based on parameter"""
         self.clear_window()
@@ -209,7 +209,8 @@ class P2PClientGUI:
             ("📂", "Shared Resources", self.view_shared_resources),
             ("↑", "Register Resource", self.register_resource),
             ("↓", "Deregister Resource", self.deregister_resource_prompt),
-            ("🔍", "Request Resource", self.request_resource_prompt)
+            ("🔍", "Request Resource", self.request_resource_prompt),
+            ("✖", "Remove Synced Resource", self.remove_synced_resource_prompt)
         ]
         
         for i, (icon, text, command) in enumerate(buttons):
@@ -448,6 +449,61 @@ class P2PClientGUI:
             dialog.destroy()
         
         ttk.Button(dialog, text="Request", command=do_request).pack(pady=10)
+    
+    def remove_synced_resource_prompt(self):
+        """Shows a dialog to remove a synced resource."""
+        if not self.logged_in:
+            messagebox.showerror("Error", "You must be logged in")
+            return
+            
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Remove Synced Resource")
+        dialog.geometry("400x250")
+        
+        ttk.Label(dialog, text="Resource Owner Peer ID:").pack(pady=5)
+        owner_entry = ttk.Entry(dialog)
+        owner_entry.pack(fill=tk.X, padx=20, pady=5)
+        
+        ttk.Label(dialog, text="File Name:").pack(pady=5)
+        file_name_entry = ttk.Entry(dialog)
+        file_name_entry.pack(fill=tk.X, padx=20, pady=5)
+        
+        ttk.Label(dialog, text="File Extension:").pack(pady=5)
+        file_ext_entry = ttk.Entry(dialog)
+        file_ext_entry.pack(fill=tk.X, padx=20, pady=5)
+        
+        def do_remove():
+            owner = owner_entry.get().strip()
+            file_name = file_name_entry.get().strip()
+            file_ext = file_ext_entry.get().strip()
+            
+            if not owner or not file_name or not file_ext:
+                messagebox.showerror("Error", "All fields are required")
+                return
+            
+            # Find and remove matching resources
+            removed = False
+            for resource in self.synced_resources[:]:  # Create a copy to iterate over
+                if (resource[0] == owner and 
+                    resource[1] == file_name and 
+                    resource[2] == file_ext):
+                    self.synced_resources.remove(resource)
+                    removed = True
+            
+            if removed:
+                self.log_message(f"[+] Removed resource: {(owner, file_name, file_ext)}")
+                self.log_message("[+] Updated Synced Resources List: ")
+                resource_number = 0
+                for resource in self.synced_resources:
+                    self.log_message(f"    [{resource_number}] {resource}")
+                    resource_number += 1
+            else:
+                self.log_message(f"[-] Resource not found: {(owner, file_name, file_ext)}")
+                messagebox.showinfo("Info", "Resource not found in synced resources")
+            
+            dialog.destroy()
+        
+        ttk.Button(dialog, text="Remove", command=do_remove).pack(pady=10)
     
     def start_sync_thread(self):
         """

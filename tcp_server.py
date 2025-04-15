@@ -60,30 +60,25 @@ def save_user(username, password):
 
 
 # Register a new resource
-def register_resource(resource_peer_id, resource_file_name, resource_file_extension, resource_file_size, resource_date_modified, file_checksum=None):  # Modified signature
-    """
-    Purpose: This function appends a resource to the shared_resources list.
-    Now includes version tracking and checksum validation.
-    """
-    # Generate resource identifier
-    resource_id = (resource_peer_id, resource_file_name, resource_file_extension)
-    
-    # Find existing versions
-    existing_versions = [res for res in shared_resources if res[:3] == resource_id]
-    
-    # Determine new version number
-    new_version = max([res[5] for res in existing_versions], default=0) + 1 if existing_versions else 1
-    
-    # Remove old versions from same peer
-    for res in existing_versions[:]:
-        if res[0] == resource_peer_id:
-            shared_resources.remove(res)
-    
-    # Add new resource with version info
-    new_resource = (*resource_id, resource_file_size, resource_date_modified, new_version, file_checksum)
-    shared_resources.append(new_resource)
-    
+def register_resource(peer_id, file_name, file_extension, file_size, last_modified, checksum=None):
+    resource_key = (file_name, file_extension)
+    new_version = 1
+
+    # If other versions exist, find max version
+    if resource_key in shared_resources:
+        existing = shared_resources[resource_key]
+        existing_versions = [entry[3] for entry in existing]
+        new_version = max(existing_versions) + 1
+
+        # Remove old entry for this peer (if any)
+        shared_resources[resource_key] = [entry for entry in existing if entry[0] != peer_id]
+
+    # Add new entry for this peer
+    new_entry = (peer_id, file_size, last_modified, new_version, checksum)
+    shared_resources.setdefault(resource_key, []).append(new_entry)
+
     return True
+
 
 
 # Deregister an existing resource
@@ -103,7 +98,17 @@ def deregister_resource(resource_peer_id, resource_file_name, resource_file_exte
             return True
     return False
 
+def is_resource_outdated(peer_id, file_name, file_extension, current_version):
+    resource_key = (file_name, file_extension)
+    if resource_key not in shared_resources:
+        return False, None
 
+    versions = shared_resources[resource_key]
+    latest_version = max(entry[3] for entry in versions)
+
+    if current_version < latest_version:
+        return True, latest_version
+    return False, latest_version
 # Function used to grab the ip and port address from the server information from a given peer
 def extract_ip_and_port(server_info):
     # Remove the parentheses and split the string by the comma
@@ -142,7 +147,31 @@ def request_file_transfer(requesting_peer, resource_owner, resource_file_name, r
                     return f"a{SEPARATOR}{resource_owner}{SEPARATOR}{owner_server_ip}{SEPARATOR}{owner_server_port}"
     return "[-] FILE NOT AVAILABLE OR PEER OFFLINE."
 
+def receive_file(client_socket):
+    try:
+        meta_data = client_socket.recv(BUFFER_SIZE).decode()
+        if not meta_data.startswith("FILE"):
+            print("[-] Invalid file metadata received.")
+            return
 
+        _, file_name, file_size = meta_data.split(SEPARATOR)
+        file_size = int(file_size)
+
+        print(f"[+] Receiving: {file_name} ({file_size} bytes)")
+
+        with open(f"received_{file_name}", "wb") as f:
+            received = 0
+            while received < file_size:
+                chunk = client_socket.recv(min(BUFFER_SIZE, file_size - received))
+                if not chunk:
+                    break
+                f.write(chunk)
+                received += len(chunk)
+
+        print(f"[+] File received and saved as received_{file_name}")
+
+    except Exception as e:
+        print(f"[-] Error receiving file: {e}")
 # Handle client(s)
 def handle_client(client_socket, client_address):
     print(f"[+] Connection from {client_address}")
@@ -178,7 +207,6 @@ def handle_client(client_socket, client_address):
                     print(f"[+] Online Users List: {online_users}")
                     client_socket.send("[+] LOGIN SUCCESSFUL!".encode())
                     logged_in = True
-                    
                     # Keep client in loop for further requests
                     while logged_in:
                         try:
@@ -308,7 +336,10 @@ def handle_client(client_socket, client_address):
                     save_user(peer_id, hashed_password)
                     users[peer_id] = hashed_password
                     client_socket.send("[+] REGISTRATION SUCCESSFUL!".encode())
-            
+            elif action == "send_file":
+                print(f"[+] Receiving file from {peer_id}")
+                receive_file(client_socket)
+                client_socket.send("[+] File received successfully.".encode())
             else:
                 client_socket.send("[-] Unknown command.".encode())
     

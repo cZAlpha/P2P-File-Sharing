@@ -404,7 +404,17 @@ class P2PClientGUI:
                 
             response = request_file_from_peer(self.client_socket, self.peer_id, owner, file_name, file_ext)
             self.log_message(f"Resource request response: {response}")
-            
+
+            if response.startswith("outdated"):
+                _, outdated_list_str = response.split(SEPARATOR)
+                outdated_list = eval(outdated_list_str)  # Or safer: use `ast.literal_eval`
+
+                for file_name, ext, curr_ver, latest_ver in outdated_list:
+                    choice = input(f"{file_name}.{ext} is outdated (v{curr_ver} < v{latest_ver}). Update? (y/n): ")
+                    if choice.lower() == 'y':
+                        # Re-register resource (with updated timestamp + version)
+                        # Or re-download from another peer
+                        pass
             if SEPARATOR in response:
                 response_parts = response.split(SEPARATOR)
                 action = response_parts[0]
@@ -640,6 +650,57 @@ def send_tcp_message(client_socket, message):
     response = client_socket.recv(BUFFER_SIZE).decode()
     return response
 
+def receive_file(client_socket):
+    try:
+        meta_data = client_socket.recv(BUFFER_SIZE).decode()
+        if not meta_data.startswith("FILE"):
+            print("[-] Invalid file metadata received.")
+            return
+
+        _, file_name, file_size = meta_data.split(SEPARATOR)
+        file_size = int(file_size)
+
+        print(f"[+] Receiving: {file_name} ({file_size} bytes)")
+
+        with open(f"received_{file_name}", "wb") as f:
+            received = 0
+            while received < file_size:
+                chunk = client_socket.recv(min(BUFFER_SIZE, file_size - received))
+                if not chunk:
+                    break
+                f.write(chunk)
+                received += len(chunk)
+
+        print(f"[+] File received and saved as received_{file_name}")
+
+    except Exception as e:
+        print(f"[-] Error receiving file: {e}")
+
+def send_file(sock, file_path):
+    try:
+        file_name = os.path.basename(file_path)
+        file_size = os.path.getsize(file_path)
+
+        # Step 1: Tell server you're sending a file
+        sock.send(f"send_file{SEPARATOR}my_peer_id{SEPARATOR}dummy".encode())  # dummy password or token, not used
+        time.sleep(0.1)  # Small delay to avoid overlap
+
+        # Step 2: Send file metadata
+        sock.send(f"FILE{SEPARATOR}{file_name}{SEPARATOR}{file_size}".encode())
+        time.sleep(0.1)
+
+        # Step 3: Send file
+        with open(file_path, "rb") as f:
+            while chunk := f.read(BUFFER_SIZE):
+                sock.sendall(chunk)
+
+        print(f"[+] Sent file {file_name} to server.")
+
+        # Step 4: Wait for server acknowledgment
+        print(sock.recv(BUFFER_SIZE).decode())
+
+    except Exception as e:
+        print(f"[-] Error sending file: {e}")
 
 def login(client_socket, peer_server_info, peer_id="", peer_password=""):
     '''

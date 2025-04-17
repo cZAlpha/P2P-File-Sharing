@@ -197,7 +197,8 @@ class P2PClientGUI:
             ("📂", "Shared Resources", self.view_shared_resources),
             ("↑", "Register Resource", self.register_resource),
             ("↓", "Deregister Resource", self.deregister_resource_prompt),
-            ("🔍", "Request Resource", self.request_resource_prompt)
+            ("🔍", "Request Resource", self.request_resource_prompt),
+            ("⚡️", "View Synced Resources", self.request_syncresource_prompt)
         ]
         
         for i, (icon, text, command) in enumerate(buttons):
@@ -439,6 +440,42 @@ class P2PClientGUI:
             dialog.destroy()
         
         ttk.Button(dialog, text="Request", command=do_request).pack(pady=10)
+
+    def request_syncresource_prompt(self):
+        """Displays only the synced resources owned by this client."""
+        if not self.logged_in:
+            messagebox.showerror("Error", "You must be logged in")
+            return
+
+        try:
+            request_message = f"l{SEPARATOR}{self.peer_id}{SEPARATOR}"
+            self.client_socket.send(request_message.encode())
+
+            response = self.client_socket.recv(4096).decode()
+            if not response:
+                self.log_message("[-] No response from server.")
+                return
+
+            try:
+                all_resources = eval(response)
+            except Exception as e:
+                self.log_message(f"[-] Failed to parse server response: {e}")
+                return
+
+            my_resources = [res for res in all_resources if res[0] == self.peer_id]
+
+            if not my_resources:
+                self.log_message("[*] You currently have no synced resources.")
+                return
+
+            self.log_message(f"[+] Synced resources for {self.peer_id}:")
+            for i, res in enumerate(my_resources, 1):
+                _, name, ext, size, timestamp, version = res
+                formatted_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(float(timestamp)))
+                self.log_message(f"  {i}. {name}.{ext} ({size} bytes) | Modified: {formatted_time} | v{version}")
+
+        except Exception as e:
+            self.log_message(f"[-] Error retrieving synced resources: {e}")
 
 
 # Added function for checksum calculation

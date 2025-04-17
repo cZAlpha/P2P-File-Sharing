@@ -901,7 +901,7 @@ def start_update_resources_thread(self):
 
     Returns: A thread object
     """
-    def update_resources(shared_resources, client_socket, peer_id):
+    def update_resources():
      """
     Purpose: This function automatically updates all resources shared every 30 seconds.
                 
@@ -914,13 +914,13 @@ def start_update_resources_thread(self):
     
     while True:
         try:
-            shared_resources = get_shared_resources(client_socket)
+            shared_resources = get_shared_resources(self.client_socket)
         
             for resource in shared_resources:
                 current_time = os.path.getmtime(file_path)
 
                 if last_modified_timestamp[file_path] != current_time:
-                    register_resource(client_socket, peer_id, resource)
+                    register_resource(self.client_socket, self.peer_id)
                     last_modified_timestamp[file_path] = current_time
 
             #check every thirty seconds

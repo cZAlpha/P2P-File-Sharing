@@ -949,7 +949,48 @@ def request_file_from_peer(client_socket, self_peer_id, resource_owner, resource
     message = f"p{SEPARATOR}{self_peer_id}{SEPARATOR}{resource_owner}{SEPARATOR}{resource_file_name}{SEPARATOR}{resource_file_extension}"
     response = send_tcp_message(client_socket, message)
     return response
+    
 
+def start_update_resources_thread(self, shared_resources, client_socket, peer_id):
+    """
+    Purpose: A thread created to run update_resources
+
+    Returns: A thread object
+    """
+    def update_resources():
+        """
+        Purpose: This function automatically updates all resources shared every 30 seconds.
+        
+        Args:
+            peer_id: The peer ID of the Peer
+            client_socket: The socket that the peer uses to talk to the server
+            shared_resources: List of the resources shared
+        Returns: returns updated resource
+        """
+        nonlocal shared_resources
+        while True:
+            try:
+                shared_resources = get_shared_resources(client_socket)
+
+                for resource in shared_resources:
+
+                    if not file_path or not os.path.exists(file_path):
+                        continue
+
+                    current_time = os.path.getmtime(file_path)
+
+                    if file_path not in last_modified_timestamp or last_modified_timestamp[file_path] != current_time:
+                        register_resource(client_socket, peer_id, resource)
+                        last_modified_timestamp[file_path] = current_time
+
+                # check every thirty seconds
+                time.sleep(30)
+            except Exception as e:
+                print(f"There was an error updating the resources, error: {e}")
+
+    # starting the thread to update the resources that have already been shared
+    update_thread = threading.Thread(target=update_resources, daemon=True)
+    update_thread.start()
 
 
 def main():

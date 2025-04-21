@@ -504,6 +504,7 @@ class P2PClientGUI:
         # Start the sync thread
         sync_thread = threading.Thread(target=sync_loop, daemon=True)
         sync_thread.start()
+
     def request_syncresource_prompt(self):
         """Displays only the resources synced (downloaded) by this client."""
         if not self.logged_in:

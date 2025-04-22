@@ -210,6 +210,7 @@ class P2PClientGUI:
             ("↑", "Register Resource", self.register_resource),
             ("↓", "Deregister Resource", self.deregister_resource_prompt),
             ("🔍", "Request Resource", self.request_resource_prompt),
+            ("⚡️","View Synced Resource", self.request_syncresource_prompt)
             ("✖", "Remove Synced Resource", self.remove_synced_resource_prompt)
         ]
         
@@ -559,6 +560,19 @@ class P2PClientGUI:
         # Start the sync thread
         sync_thread = threading.Thread(target=sync_loop, daemon=True)
         sync_thread.start()
+
+    def request_syncresource_prompt(self):
+        """Displays only the resources synced (downloaded) by this client."""
+        if not self.logged_in:
+            messagebox.showerror("Error", "You must be logged in")
+            return
+
+        if not hasattr(self, 'synced_resources') or not self.synced_resources:
+            self.log_message("[*] You have not synced any resources yet.")
+        else:
+            self.log_message(f"[+] Synced resources for {self.peer_id}:")
+            for i, (owner, name, ext, version) in enumerate(self.synced_resources, 1):
+                self.log_message(f"  {i}. {name}.{ext} from {owner} | v{version}")
 
 
 

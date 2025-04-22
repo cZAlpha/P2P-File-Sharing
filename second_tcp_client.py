@@ -210,7 +210,7 @@ class P2PClientGUI:
             ("↑", "Register Resource", self.register_resource),
             ("↓", "Deregister Resource", self.deregister_resource_prompt),
             ("🔍", "Request Resource", self.request_resource_prompt),
-            ("⚡️", "View Synced Resource", self.request_syncresource_prompt)
+            ("⚡️", "View Synced Resource", self.request_syncresource_prompt),
             ("✖", "Remove Synced Resource", self.remove_synced_resource_prompt)
         ]
         

@@ -52,6 +52,8 @@ class P2PClientGUI:
         # Start the sync thread in the background
         self.synced_resources = []  # List of tuples (owner, name, ext, version)
         self.start_sync()
+
+
         
         # Create connection to main server
         self.connect_to_server()
@@ -270,6 +272,8 @@ class P2PClientGUI:
         if self.logged_in:
             self.create_main_ui()
             self.log_message(f"Successfully logged in as {self.peer_id}")
+            #starting thread to check for updates
+            self.start_update_resources_thread()
         else:
             messagebox.showerror("Login Failed", "Invalid credentials or server error")
     
@@ -504,7 +508,95 @@ class P2PClientGUI:
         sync_thread = threading.Thread(target=sync_loop, daemon=True)
         sync_thread.start()
 
+    def start_update_resources_thread(self):
+        def update_resources():
+        # Dictionary to track last modified timestamps and sizes of files
+            last_modified = {}
+        
+            while True:
+                if self.logged_in and self.peer_id:
 
+                    try:
+                       
+                        self.log_message("[UPDATE] Checking for modified resources...")
+                # Get current shared resources from server
+                        shared_resources_response = get_shared_resources(self.client_socket)
+                
+                # Parse the response
+                        shared_resources = eval(shared_resources_response)
+                
+                # Track if any updates were found
+                
+                        updates_found = False
+                
+                        for resource in shared_resources:
+                    # Extract file information
+                            owner, file_name, file_extension, file_size, timestamp, version = resource
+        
+                    
+                    # Only update resources that belong to this user
+                            if owner != self.peer_id:
+                                continue
+                        
+                    
+                    # Look for the file in both capitalized and lowercase Downloads folders and w/o temp
+                            file_paths = [
+                                os.path.join("Downloads", f"{file_name}.{file_extension}.temp"),
+                                os.path.join("downloads", f"{file_name}.{file_extension}.temp"),
+                                os.path.join("Downloads", f"{file_name}.temp"),
+                                os.path.join("downloads", f"{file_name}.temp"),
+                                os.path.join("Downloads", f"{file_name}.{file_extension}"),
+                                os.path.join("downloads", f"{file_name}.{file_extension}")
+                    ]
+                    
+                            found_file = False
+                            for file_path in file_paths:
+                                if os.path.exists(file_path):
+                                    found_file = True
+                                    current_time = time.time()
+                                    current_size = os.path.getsize(file_path)
+                            
+                            # Debug info
+                                    #self.log_message(f"[UPDATE] Checking {file_path}: last={last_modified.get(file_path, 'none')}, current={current_time}")
+                            
+                            # Check if file was modified
+                                    if file_path not in last_modified or last_modified[file_path][0] != current_time or last_modified[file_path][1] != current_size:
+                                # Register the updated resource with new time
+                                        message = (f"r{SEPARATOR}{self.peer_id}{SEPARATOR}{file_name}"
+                                                f"{SEPARATOR}{file_extension}{SEPARATOR}{str(current_size)}"
+                                                f"{SEPARATOR}{str(current_time)}")
+                                
+                                        response = send_tcp_message(self.client_socket, message)
+                                        self.log_message(f"[UPDATE] Resource update sent: {file_name}.{file_extension}")
+                                        self.log_message(f"[UPDATE] Server response: {response}")
+                                
+                                # Update the timestamp
+                                        last_modified[file_path] = (current_time, current_size)
+                                        updates_found = True
+                                    break
+                    
+                            if not found_file:
+                                #self.log_message(f"[UPDATE] Resource {file_name}.{file_extension} not found locally")
+                                pass
+                
+                        if not updates_found:
+                            #self.log_message("[UPDATE] No modified resources detected")
+                            pass
+                    
+                # Check every thirty seconds
+                        time.sleep(30)
+                    except Exception as e:
+                        self.log_message(f"[UPDATE ERROR] Error updating resources: {e}")
+                        
+
+    # Starting the thread
+        update_thread = threading.Thread(target=update_resources, daemon=True)
+        update_thread.start()
+        #test
+        print("thread started")
+        return update_thread
+    
+      
 
 def create_persistent_connection(ip, port):
     '''
@@ -608,6 +700,7 @@ def start_server():
     
     return server_socket  # Keep a reference to the server socket
 
+    
 
 def connect_to_peer(peer_server_ip, peer_server_port, self_peer_id, owner_peer_id, resource_file_name, resource_file_extension):
     """
@@ -894,46 +987,7 @@ def request_file_from_peer(client_socket, self_peer_id, resource_owner, resource
     response = send_tcp_message(client_socket, message)
     return response
 
-def start_update_resources_thread(self, shared_resources, client_socket, peer_id):
-    """
-    Purpose: A thread created to run update_resources
 
-    Returns: A thread object
-    """
-    def update_resources():
-        """
-        Purpose: This function automatically updates all resources shared every 30 seconds.
-        
-        Args:
-            peer_id: The peer ID of the Peer
-            client_socket: The socket that the peer uses to talk to the server
-            shared_resources: List of the resources shared
-        Returns: returns updated resource
-        """
-        nonlocal shared_resources
-        while True:
-            try:
-                shared_resources = get_shared_resources(client_socket)
-
-                for resource in shared_resources:
-
-                    if not file_path or not os.path.exists(file_path):
-                        continue
-
-                    current_time = os.path.getmtime(file_path)
-
-                    if file_path not in last_modified_timestamp or last_modified_timestamp[file_path] != current_time:
-                        register_resource(client_socket, peer_id, resource)
-                        last_modified_timestamp[file_path] = current_time
-
-                # check every thirty seconds
-                time.sleep(30)
-            except Exception as e:
-                print(f"There was an error updating the resources, error: {e}")
-
-    # starting the thread to update the resources that have already been shared
-    update_thread = threading.Thread(target=update_resources, daemon=True)
-    update_thread.start()
 
 
 def main():

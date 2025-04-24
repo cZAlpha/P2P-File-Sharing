@@ -1,8 +1,8 @@
-from threading import Thread
 import datetime
 import hashlib
-import socket
 import os  # Added for checksum calculation
+import socket
+from threading import Thread
 
 # Global variables
 Server_IP = '127.0.0.1'  # Localhost; replace with IP address if needed
@@ -128,18 +128,24 @@ def request_file_transfer(requesting_peer, resource_owner, resource_file_name, r
     Returns:
         The (IP address, port) of the resource owner or an error message.
     """
-    if requesting_peer == resource_owner: # Check if the peer is requesting a file from themselves
+    if requesting_peer == resource_owner:
         return f"[!] You are requesting a file you own, you cannot download a file from yourself!"
+    
     resource_to_check = (resource_owner, resource_file_name, resource_file_extension)
-    for user in online_users: # Check if the resource owner is online still
-        owner_server_info = user[1] # Format: (server_ip, server_port)
-        if user[0] == resource_owner: 
-            for resource in shared_resources: # Iterate over the shared_resources and check if the resource_to_check is in it
-                if resource[:3] == resource_to_check:  # If the resource is in the shared_resources list
-                    owner_server_ip, owner_server_port = extract_ip_and_port(owner_server_info) # Extract the ip and port information
-                    resource_version_num = resource[5] # Grab the version number to track if the file should be updated during syncing
-                    # Send the requesting peer the owner's contact information and version number of the file
-                    return f"a{SEPARATOR}{resource_owner}{SEPARATOR}{owner_server_ip}{SEPARATOR}{owner_server_port}{SEPARATOR}{resource_version_num}"
+    
+    for user in online_users:
+        if user[0] == resource_owner:
+            owner_server_info = user[1]
+            for resource in shared_resources:
+                if resource[:3] == resource_to_check:
+                    try:
+                        owner_server_ip, owner_server_port = extract_ip_and_port(owner_server_info)
+                        resource_version_num = resource[5]
+                        return f"a{SEPARATOR}{resource_owner}{SEPARATOR}{owner_server_ip}{SEPARATOR}{owner_server_port}{SEPARATOR}{resource_version_num}"
+                    except Exception as e:
+                        print(f"Error extracting IP/port: {e}")
+                        return "[-] Error processing server information."
+    
     return "[-] FILE NOT AVAILABLE OR PEER OFFLINE."
 
 

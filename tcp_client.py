@@ -1,14 +1,13 @@
-from tkinter import filedialog, messagebox, scrolledtext, ttk
-import tkinter as tk
-from socket import *
-import threading
 import datetime
 import hashlib  # For hashing passwords when logging in
-import random
-import time
-import sys
 import os
-
+import random
+import sys
+import threading
+import time
+import tkinter as tk
+from socket import *
+from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 # NOTE:
 # Noah's user's password is: D10686712
@@ -699,10 +698,10 @@ def connect_to_peer(peer_server_ip, peer_server_port, self_peer_id, owner_peer_i
         print(f"[+] Connected to peer at {peer_server_ip}:{peer_server_port}.")
         
         # Format: p<SEP>client_0<SEP>client_1<SEP>Resource0<SEP>txt
-        request_message = f"p{SEPARATOR}{self_peer_id}{SEPARATOR}{owner_peer_id}{SEPARATOR}{resource_file_name}{SEPARATOR}{resource_file_extension}".encode()
+        request_message = f"p{SEPARATOR}{self_peer_id}{SEPARATOR}{owner_peer_id}{SEPARATOR}{resource_file_name}{SEPARATOR}{resource_file_extension}"
         print(f"[+] Sending message: {request_message}")
         # Send the request message to the resource owner
-        client_socket.send(request_message)
+        client_socket.send(request_message.encode())
         
         # Receive the file metadata
         metadata = client_socket.recv(BUFFER_SIZE).decode()
@@ -719,21 +718,39 @@ def connect_to_peer(peer_server_ip, peer_server_port, self_peer_id, owner_peer_i
             file_extension = parts[2]
             file_size = int(parts[3])
             
-            filepath = os.path.join("Downloads", file_name + "." + file_extension + ".temp")
+            # Ensure downloads directory exists
+            os.makedirs("Downloads", exist_ok=True)
+            
+            # Create final file path
+            filepath = os.path.join("Downloads", f"{file_name}.{file_extension}")
+            temp_filepath = filepath + ".temp"
+            
             print(f"[+] Receiving file: {file_name}.{file_extension}")
             
-            with open(filepath, "wb") as file:
-                received_size = 0
-                while received_size < file_size:
-                    chunk = client_socket.recv(BUFFER_SIZE)
+            # Receive file in binary mode
+            with open(temp_filepath, "wb") as file:
+                remaining_bytes = file_size
+                while remaining_bytes > 0:
+                    chunk = client_socket.recv(min(BUFFER_SIZE, remaining_bytes))
                     if not chunk:
                         break
                     file.write(chunk)
-                    received_size += len(chunk)
+                    remaining_bytes -= len(chunk)
             
-            print(f"[+] File saved: {filepath}")
-            client_socket.close()
-            return True
+            # Rename temp file to final name if download completed
+            if os.path.exists(temp_filepath) and os.path.getsize(temp_filepath) == file_size:
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+                os.rename(temp_filepath, filepath)
+                print(f"[+] File saved: {filepath}")
+                client_socket.close()
+                return True
+            else:
+                print("[!] File transfer incomplete or corrupted")
+                if os.path.exists(temp_filepath):
+                    os.remove(temp_filepath)
+                client_socket.close()
+                return False
         else:
             print("[!] Incorrect metadata format.")
             client_socket.close()
@@ -742,6 +759,116 @@ def connect_to_peer(peer_server_ip, peer_server_port, self_peer_id, owner_peer_i
     except Exception as e:
         print(f"[!] Error connecting to peer @ {peer_server_ip}:{peer_server_port}, error: {e}")
         return False
+
+
+def start_server():
+    """
+    Purpose: 
+        Starts a simple server instance that accepts both text messages and files.
+        Saves received files to the '/downloads/' directory.
+    """
+    port_number = random.randint(12000,12999) # Randomized port number
+    server_socket = socket(AF_INET, SOCK_STREAM)
+    server_socket.bind((SERVER_IP_ADDRESS, port_number))
+    server_socket.listen(2)  # Allow only two connections (self, and optionally another peer)
+    print(f"[tcp_client.py] Server started at {SERVER_IP_ADDRESS}:{port_number}")
+    
+    # Ensure the downloads directory exists
+    os.makedirs("Downloads", exist_ok=True)
+    
+    def server_loop():
+        while True:
+            peer, addr = server_socket.accept()
+            print(f"[tcp_client.py] Connection from {addr}")
+            
+            # Receive initial message (could be file metadata or normal message)
+            message = peer.recv(BUFFER_SIZE).decode()
+            
+            if SEPARATOR not in message:
+                print("[!] Incorrectly formatted message received. Was: ", message)
+                peer.send("[!] Incorrectly formatted message. Your message needs <SEP> in it.")
+                peer.close()
+                continue
+                
+            parts = message.split(SEPARATOR)
+            action = parts[0] or None
+            
+            if action == "s" and len(parts) == 4: # File sending
+                file_name = parts[1] or None
+                file_extension = parts[2] or None
+                file_size = parts[3] or None
+                
+                # Define the file's download path
+                filepath = os.path.join("Downloads", f"{file_name}.{file_extension}.temp")
+                print(f"[+] Receiving file: {file_name}.{file_extension}")
+                
+                # Receive and save file in binary mode
+                with open(filepath, "wb") as file:
+                    remaining_bytes = int(file_size)
+                    while remaining_bytes > 0:
+                        chunk = peer.recv(min(BUFFER_SIZE, remaining_bytes))
+                        if not chunk:
+                            break
+                        file.write(chunk)
+                        remaining_bytes -= len(chunk)
+                
+                # Rename temp file to final name if complete
+                final_path = os.path.join("Downloads", f"{file_name}.{file_extension}")
+                if os.path.exists(filepath) and os.path.getsize(filepath) == int(file_size):
+                    if os.path.exists(final_path):
+                        os.remove(final_path)
+                    os.rename(filepath, final_path)
+                    print(f"[tcp_client.py] File saved: {final_path}")
+                else:
+                    print("[!] File transfer incomplete or corrupted")
+                    if os.path.exists(filepath):
+                        os.remove(filepath)
+                
+            elif action == "p" and len(parts) == 5: # Resource request
+                requesting_peer_id = parts[1] or None
+                owner_peer_id = parts[2] or None
+                file_name = parts[3] or None 
+                file_extension = parts[4] or None 
+                
+                if (requesting_peer_id and owner_peer_id and file_name and file_extension): 
+                    print(f"[+] Resource request received: {requesting_peer_id} requests {file_name}.{file_extension} from {owner_peer_id}")
+                    
+                    # Look for the file in Downloads directory
+                    resource_path = os.path.join("Downloads", f"{file_name}.{file_extension}")
+                    if os.path.exists(resource_path):
+                        print(f"[+] Sending resource {file_name}.{file_extension} to peer {requesting_peer_id}")
+                        
+                        # Get file size
+                        file_size = os.path.getsize(resource_path)
+                        
+                        # Send the metadata
+                        peer.send(f"s{SEPARATOR}{file_name}{SEPARATOR}{file_extension}{SEPARATOR}{file_size}".encode())
+                        
+                        # Send the file in binary mode
+                        with open(resource_path, "rb") as file:
+                            while True:
+                                chunk = file.read(BUFFER_SIZE)
+                                if not chunk:
+                                    break
+                                peer.send(chunk)
+                        
+                        print(f"[+] File {file_name}.{file_extension} sent to peer {requesting_peer_id}.")
+                    else:
+                        print(f"[!] Resource {file_name}.{file_extension} not found.")
+                        peer.send("[!] Resource not found.".encode())
+                else:
+                    print("[!] Resource request message was not formatted correctly, was: ", message)
+                    peer.send("[!] Invalid request format.".encode())
+            else:
+                print(f"[+] Received message: {message}")
+                peer.send("[+] ACK from tcp_client.py".encode())
+            
+            peer.close()
+    
+    server_thread = threading.Thread(target=server_loop, daemon=True)
+    server_thread.start()
+    
+    return server_socket
 
 
 def send_tcp_message(client_socket, message):

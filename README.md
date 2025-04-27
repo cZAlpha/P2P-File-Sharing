@@ -1,8 +1,22 @@
 # P2P-File-Sharing
+
+## How to run the code
+To run this project, you have to run the following files, ensuring that the tcp_server.py file is run before any clients are spun up:
+- tcp_server.py
+- tcp_client.py
+- second_tcp_client.py
+</br>
+After these are all running, you can then log into each client using the following login information (or sign up): </br>
+1. Username: czalpha, Password: D10686712 </br>
+2. Username: wdonzcar, Password: sandwich1 </br>
+</br>
+From here, you can register files to the netowrk to enable subscription to the files. To subscribe to a file, you must request the file. Once you have requested and received a file, you will have that file synced upon updates to that file. To update the file, you must upload an updated version of that file. To unsubscribe from a file, you can simply press the 'remove synced resource' button. To remove a resource from the index, you can deregister the resource. You can also list all online users, all shared resources, as well as the synced resources you currently possess.
+
+## Architecture
 A peer to peer file sharing networking project for our Computer Networking class.
 
 <figure style="text-align:center;">
-   <img src="Assets/P2P_Networking_Project_Diagram.png" height="600"></div>
+   <img src="Assets/P2P_Project_Architecture.png" height="600"></div>
 	<figcaption style="font-weight:bold; color:#0055ee;">Figure 1: Network Diagram.</figcaption>
 </figure>
 
